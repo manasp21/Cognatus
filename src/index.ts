@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { McpServer } from "@modelcontextprotocol/sdk/dist/server/mcp.js";
-import { createStatelessServer } from "@smithery/sdk/dist/server/stateless.js";
+import { McpServer } from "@modelcontextprotocol/sdk";
+import { createStatelessServer } from "@smithery/sdk";
 import { z } from "zod";
 import chalk from 'chalk';
 
@@ -210,7 +210,17 @@ class ScientificMethodEngine {
   }
 }
 
-export const configSchema = z.object({});
+  interface ObservationInput { problemStatement: string; }
+interface LiteratureReviewInput { literature: string; }
+interface HypothesisFormationInput { hypothesis: string; }
+interface HypothesisGenerationInput { hypotheses: string[]; }
+interface ExperimentDesignInput { experiment: string; }
+interface DataCollectionInput { data: string; }
+interface AnalysisInput { analysis: string; }
+interface ConclusionInput { conclusion: string; }
+interface LiteratureSearchInput { query: string; }
+interface DataAnalysisInput { data: string[]; }
+interface ScoreHypothesisInput { hypothesisId: string; score: number; }
 
 export const configSchema = z.object({});
 
@@ -226,70 +236,70 @@ export function createCognatusServer({ config }: { config: z.infer<typeof config
     "observation",
     "Problem identification",
     z.object({ problemStatement: z.string() }),
-    async ({ problemStatement }) => engine.observation({ problemStatement })
+    async (input: ObservationInput) => engine.observation(input)
   );
 
   server.tool(
     "literature_review",
     "Background research",
     z.object({ literature: z.string() }),
-    async ({ literature }) => engine.literature_review({ literature })
+    async (input: LiteratureReviewInput) => engine.literature_review(input)
   );
 
   server.tool(
     "hypothesis_formation",
     "Generate a single testable hypothesis",
     z.object({ hypothesis: z.string() }),
-    async ({ hypothesis }) => engine.hypothesis_formation({ hypothesis })
+    async (input: HypothesisFormationInput) => engine.hypothesis_formation(input)
   );
 
   server.tool(
     "hypothesis_generation",
     "Create multiple competing hypotheses",
     z.object({ hypotheses: z.array(z.string()) }),
-    async ({ hypotheses }) => engine.hypothesis_generation({ hypotheses })
+    async (input: HypothesisGenerationInput) => engine.hypothesis_generation(input)
   );
 
   server.tool(
     "experiment_design",
     "Design testing methodology",
     z.object({ experiment: z.string() }),
-    async ({ experiment }) => engine.experiment_design({ experiment })
+    async (input: ExperimentDesignInput) => engine.experiment_design(input)
   );
 
   server.tool(
     "data_collection",
     "Gather evidence",
     z.object({ data: z.string() }),
-    async ({ data }) => engine.data_collection({ data })
+    async (input: DataCollectionInput) => engine.data_collection(input)
   );
 
   server.tool(
     "analysis",
     "Analyze results",
     z.object({ analysis: z.string() }),
-    async ({ analysis }) => engine.analysis({ analysis })
+    async (input: AnalysisInput) => engine.analysis(input)
   );
 
   server.tool(
     "conclusion",
     "Draw conclusions and refine theory",
     z.object({ conclusion: z.string() }),
-    async ({ conclusion }) => engine.conclusion({ conclusion })
+    async (input: ConclusionInput) => engine.conclusion(input)
   );
 
   server.tool(
     "literature_search",
     "Search academic databases",
     z.object({ query: z.string() }),
-    async ({ query }) => engine.literature_search({ query })
+    async (input: LiteratureSearchInput) => engine.literature_search(input)
   );
 
   server.tool(
     "data_analysis",
     "Statistical analysis of results",
     z.object({ data: z.array(z.string()) }),
-    async ({ data }) => engine.data_analysis({ data })
+    async (input: DataAnalysisInput) => engine.data_analysis(input)
   );
 
   server.tool(
@@ -303,7 +313,7 @@ export function createCognatusServer({ config }: { config: z.infer<typeof config
     "score_hypothesis",
     "Assign an evidence score to a specific hypothesis",
     z.object({ hypothesisId: z.string(), score: z.number().min(0).max(1) }),
-    async ({ hypothesisId, score }) => engine.score_hypothesis({ hypothesisId, score })
+    async (input: ScoreHypothesisInput) => engine.score_hypothesis(input)
   );
 
   server.tool(
