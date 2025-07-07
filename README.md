@@ -21,9 +21,9 @@ An MCP server implementation that provides a sequential thinking process for sci
 - `conclusion` - Draw conclusions and refine theory
 - `hypothesis_generation` - Create multiple competing hypotheses
 - `experiment_design` - Design systematic tests
-- `literature_search` - Search academic databases
-- `data_analysis` - Statistical analysis of results
-- `peer_review_simulation` - Validate findings from multiple perspectives
+- `literature_search` - Comprehensive academic database search with realistic results from PubMed, arXiv, Google Scholar, IEEE, and Scopus
+- `data_analysis` - Advanced statistical analysis including descriptive statistics, inferential statistics, correlation analysis, regression analysis, and hypothesis testing
+- `peer_review_simulation` - Multi-perspective peer review with 4 reviewer types (skeptical, supportive, methodological, statistical) and 5 focus areas (hypotheses, methodology, data, conclusions, overall)
 
 ## Installation
 

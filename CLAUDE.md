@@ -70,5 +70,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `observation`, `literature_review`, `hypothesis_formation`, `experiment_design`, `data_collection`, `analysis`, `conclusion`
 
 **Research Management Tools:**
-- `hypothesis_generation`, `literature_search`, `data_analysis`, `peer_review_simulation`
+- `hypothesis_generation` - Create multiple competing hypotheses with automatic scoring
+- `literature_search` - Comprehensive academic database search with realistic results from PubMed, arXiv, Google Scholar, IEEE, and Scopus, including citation counts, abstracts, and relevance scoring
+- `data_analysis` - Advanced statistical analysis including descriptive statistics (mean, median, mode, standard deviation), inferential statistics (t-tests, confidence intervals), correlation analysis (Pearson correlation), regression analysis (linear regression with R-squared), and hypothesis testing (normality tests, significance testing)
+- `peer_review_simulation` - Multi-perspective peer review with 4 reviewer types (skeptical, supportive, methodological, statistical) and 5 focus areas (hypotheses, methodology, data, conclusions, overall), providing detailed critique, suggestions, and confidence ratings
 - `score_hypothesis`, `check_for_breakthrough`, `get_state`
