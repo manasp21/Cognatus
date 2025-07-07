@@ -22,10 +22,106 @@ const STAGE_TRANSITIONS = {
     [Stage.Analysis]: [Stage.Conclusion],
     [Stage.Conclusion]: [],
 };
+class WebSearchService {
+    config;
+    availableTools;
+    constructor(config = { enabled: true, preferReal: true, fallbackToSimulation: true }) {
+        this.config = config;
+        this.availableTools = new Set(config.availableTools || []);
+    }
+    async search(query, options = {}) {
+        const startTime = Date.now();
+        if (!this.config.enabled) {
+            return this.simulateSearch(query, options, startTime);
+        }
+        // Try real web search first if preferred and available
+        if (this.config.preferReal && this.hasWebSearchTools()) {
+            try {
+                const realResult = await this.performRealSearch(query, options);
+                if (realResult) {
+                    return {
+                        ...realResult,
+                        searchTime: Date.now() - startTime,
+                        source: 'real'
+                    };
+                }
+            }
+            catch (error) {
+                console.error('Real web search failed:', error);
+                if (!this.config.fallbackToSimulation) {
+                    throw error;
+                }
+            }
+        }
+        // Fallback to simulation
+        return this.simulateSearch(query, options, startTime);
+    }
+    hasWebSearchTools() {
+        return this.availableTools.has('WebSearch') || this.availableTools.has('WebFetch');
+    }
+    async performRealSearch(query, options) {
+        // This would integrate with actual web search tools available in the MCP context
+        // For now, we'll return null to indicate real search is not available
+        // In a real implementation, this would call the available web search tools
+        // Example implementation would be:
+        // if (this.availableTools.has('WebSearch')) {
+        //   return await this.callWebSearchTool(query, options);
+        // }
+        return null;
+    }
+    simulateSearch(query, options, startTime) {
+        const results = this.generateSimulatedResults(query, options.limit || 10);
+        return {
+            results,
+            totalResults: results.length,
+            searchTime: Date.now() - startTime,
+            query,
+            source: 'simulated'
+        };
+    }
+    generateSimulatedResults(query, limit) {
+        const results = [];
+        const currentYear = new Date().getFullYear();
+        // Generate realistic web search results
+        for (let i = 0; i < limit; i++) {
+            const year = currentYear - Math.floor(Math.random() * 5);
+            results.push({
+                title: `${query}: Research and Analysis - Study ${i + 1}`,
+                url: `https://example.com/research/${query.toLowerCase().replace(/\s+/g, '-')}-${i + 1}`,
+                snippet: `Recent research on ${query} shows significant findings in this area. This study examines the implications and provides new insights into ${query} methodology and applications.`,
+                source: 'Academic Research Portal',
+                date: `${year}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
+            });
+        }
+        return results;
+    }
+    formatWebSearchForLiterature(response) {
+        let formatted = `## 🔍 Literature Search Results\n\n`;
+        formatted += `**Query:** "${response.query}"\n`;
+        formatted += `**Source:** ${response.source === 'real' ? '🌐 Real web search' : '🔬 Simulated search'}\n`;
+        formatted += `**Results:** ${response.results.length} of ${response.totalResults}\n`;
+        formatted += `**Search Time:** ${response.searchTime}ms\n\n`;
+        response.results.forEach((result, index) => {
+            formatted += `### ${index + 1}. ${result.title}\n`;
+            formatted += `**Source:** ${result.source}\n`;
+            if (result.date) {
+                formatted += `**Date:** ${result.date}\n`;
+            }
+            formatted += `**URL:** ${result.url}\n`;
+            formatted += `**Summary:** ${result.snippet}\n\n`;
+        });
+        if (response.source === 'simulated') {
+            formatted += `💡 **Note:** These are simulated results. For real research, enable web search tools in your MCP configuration.\n\n`;
+        }
+        return formatted;
+    }
+}
 class ScientificMethodEngine {
     state;
-    constructor() {
+    webSearchService;
+    constructor(webSearchConfig) {
         this.state = this.getInitialState();
+        this.webSearchService = new WebSearchService(webSearchConfig);
     }
     getInitialState() {
         return {
@@ -81,7 +177,15 @@ class ScientificMethodEngine {
     }
     safeExecute(operation, context) {
         try {
-            return operation();
+            const result = operation();
+            if (result instanceof Promise) {
+                return result.catch((error) => {
+                    const errorMsg = `Error in ${context}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+                    this.log(errorMsg, 'error');
+                    return { content: [{ type: "text", text: errorMsg }] };
+                });
+            }
+            return result;
         }
         catch (error) {
             const errorMsg = `Error in ${context}: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -102,18 +206,73 @@ class ScientificMethodEngine {
             return { content: [{ type: "text", text: `Observation recorded. Current stage: ${this.state.currentStage}` }] };
         }, 'observation');
     }
-    literature_review(input) {
-        return this.safeExecute(() => {
+    async literature_review(input) {
+        return this.safeExecute(async () => {
             this.validateInput(input, ['literature']);
-            const { literature } = input;
+            const { literature, autoSearch = false } = input;
             if (literature.length < 20) {
                 throw new Error('Literature review must be at least 20 characters long');
+            }
+            let finalOutput = `Literature review added: ${literature}`;
+            // Add automatic web search if enabled and we have a problem statement
+            if (autoSearch && this.state.problemStatement) {
+                try {
+                    this.log('Performing automatic literature search based on problem statement', 'info');
+                    // Generate search queries from problem statement
+                    const searchQueries = this.generateSearchQueries(this.state.problemStatement);
+                    let webSearchResults = '';
+                    for (const query of searchQueries.slice(0, 2)) { // Limit to 2 queries to avoid overwhelming
+                        const searchResponse = await this.webSearchService.search(query, {
+                            limit: 3,
+                            academic: true
+                        });
+                        if (searchResponse.results.length > 0) {
+                            webSearchResults += `\n\n### 🔍 Auto-Search Results for "${query}"\n`;
+                            webSearchResults += `**Source:** ${searchResponse.source === 'real' ? 'Real web search' : 'Simulated search'}\n\n`;
+                            searchResponse.results.forEach((result, index) => {
+                                webSearchResults += `${index + 1}. **${result.title}**\n`;
+                                webSearchResults += `   ${result.snippet}\n`;
+                                webSearchResults += `   Source: ${result.source} | URL: ${result.url}\n\n`;
+                            });
+                        }
+                    }
+                    if (webSearchResults) {
+                        finalOutput += `\n\n## 📚 Automatic Literature Search Results\n${webSearchResults}`;
+                        finalOutput += `\n💡 **Tip:** Use the \`literature_search\` tool for more comprehensive academic database searches.`;
+                    }
+                }
+                catch (error) {
+                    this.log(`Auto-search failed: ${error}`, 'warning');
+                    finalOutput += `\n\n⚠️ **Note:** Automatic literature search failed. Consider using the \`literature_search\` tool manually.`;
+                }
+            }
+            else if (autoSearch && !this.state.problemStatement) {
+                finalOutput += `\n\n💡 **Tip:** Complete the observation stage first to enable automatic literature search based on your problem statement.`;
             }
             this.state.literature.push(literature);
             this.log(`Literature added: ${literature}`);
             this.transitionTo(Stage.HypothesisFormation);
-            return { content: [{ type: "text", text: `Literature added. Current stage: ${this.state.currentStage}` }] };
+            return { content: [{ type: "text", text: finalOutput }] };
         }, 'literature_review');
+    }
+    generateSearchQueries(problemStatement) {
+        // Extract key terms and generate search queries
+        const queries = [];
+        // Simple keyword extraction (in a real implementation, this could be more sophisticated)
+        const cleanedStatement = problemStatement.toLowerCase();
+        // Generate different query variations
+        queries.push(problemStatement.slice(0, 50)); // First 50 chars as base query
+        // Extract potential key terms
+        const terms = cleanedStatement.split(/\s+/).filter(term => term.length > 4 &&
+            !['that', 'with', 'this', 'from', 'they', 'have', 'been', 'will', 'were', 'what', 'when', 'where', 'how'].includes(term));
+        if (terms.length >= 2) {
+            queries.push(`${terms[0]} ${terms[1]} research`);
+            queries.push(`${terms[0]} ${terms[1]} study`);
+        }
+        if (terms.length >= 3) {
+            queries.push(`${terms[0]} ${terms[1]} ${terms[2]}`);
+        }
+        return queries.filter(q => q.length > 10); // Filter out too short queries
     }
     hypothesis_formation(input) {
         return this.safeExecute(() => {
@@ -174,15 +333,40 @@ class ScientificMethodEngine {
         this.log(`Conclusion drawn: ${conclusion}`);
         return { content: [{ type: "text", text: `Conclusion drawn. Research complete.` }] };
     }
-    literature_search(input) {
-        return this.safeExecute(() => {
+    async literature_search(input) {
+        return this.safeExecute(async () => {
             this.validateInput(input, ['query']);
             const params = input;
             const { query, database = 'scholar', limit = 10, yearFrom, yearTo } = params;
             if (query.length < 3) {
                 throw new Error('Search query must be at least 3 characters long');
             }
-            // Generate realistic search results
+            // Try web search first, then fallback to academic database simulation
+            try {
+                const webSearchResponse = await this.webSearchService.search(query, {
+                    limit: Math.min(limit, 5), // Limit web search results
+                    academic: true,
+                    yearFrom,
+                    yearTo
+                });
+                if (webSearchResponse.source === 'real') {
+                    // Use real web search results
+                    const webSearchSummary = this.webSearchService.formatWebSearchForLiterature(webSearchResponse);
+                    // Also generate academic database results for comparison
+                    const academicResults = this.generateLiteratureResults(query, database, limit - webSearchResponse.results.length, yearFrom, yearTo);
+                    const academicSummary = this.formatLiteratureSearchResults(academicResults, query, database);
+                    const combinedSummary = `${webSearchSummary}\n---\n\n## 📚 Academic Database Results\n\n${academicSummary}`;
+                    // Add to literature state for future reference
+                    const literatureEntry = `Literature search: "${query}" via web search + ${database} (${webSearchResponse.results.length + academicResults.length} results)`;
+                    this.state.literature.push(literatureEntry);
+                    this.log(`Literature search completed: ${webSearchResponse.results.length} web + ${academicResults.length} academic results for "${query}"`, 'success');
+                    return { content: [{ type: "text", text: combinedSummary }] };
+                }
+            }
+            catch (error) {
+                this.log(`Web search failed, falling back to academic database simulation: ${error}`, 'warning');
+            }
+            // Fallback to academic database simulation
             const results = this.generateLiteratureResults(query, database, limit, yearFrom, yearTo);
             const summary = this.formatLiteratureSearchResults(results, query, database);
             // Add to literature state for future reference
@@ -402,9 +586,419 @@ class ScientificMethodEngine {
         return sortedKeywords.join(', ');
     }
     data_analysis(input) {
-        const { data } = input;
-        this.log(`Data analysis performed on: ${data.join(', ')}`);
-        return { content: [{ type: "text", text: `Data analysis recorded.` }] };
+        return this.safeExecute(() => {
+            this.validateInput(input, ['data']);
+            const params = input;
+            const { data, analysisType = 'comprehensive', targetVariable, confidenceLevel = 0.95 } = params;
+            if (data.length < 2) {
+                throw new Error('At least 2 data points are required for statistical analysis');
+            }
+            // Parse and validate data
+            const numericData = this.parseDataPoints(data);
+            if (numericData.length === 0) {
+                throw new Error('No valid numeric data found for analysis');
+            }
+            // Perform statistical analysis
+            const report = this.generateStatisticalAnalysis(data, numericData, analysisType, targetVariable, confidenceLevel);
+            const summary = this.formatDataAnalysisReport(report, analysisType);
+            // Update analysis state
+            this.state.analysis = `Statistical analysis completed: ${analysisType} analysis of ${data.length} data points (${numericData.length} numeric)`;
+            this.log(`Data analysis completed: ${analysisType} analysis on ${data.length} data points`, 'success');
+            return { content: [{ type: "text", text: summary }] };
+        }, 'data_analysis');
+    }
+    parseDataPoints(data) {
+        const numericData = [];
+        data.forEach(point => {
+            // Try to extract numeric values from text
+            const cleanPoint = point.replace(/[^\d.-]/g, ' ').trim();
+            const numbers = cleanPoint.split(/\s+/).map(n => parseFloat(n)).filter(n => !isNaN(n));
+            numericData.push(...numbers);
+        });
+        return numericData;
+    }
+    generateStatisticalAnalysis(rawData, numericData, analysisType, targetVariable, confidenceLevel = 0.95) {
+        const report = {
+            datasetSummary: {
+                sampleSize: rawData.length,
+                dataPoints: rawData.slice(0, 10), // Show first 10 for brevity
+                dataTypes: this.classifyDataTypes(rawData)
+            },
+            descriptiveStats: this.calculateDescriptiveStats(numericData),
+            recommendations: []
+        };
+        // Add analysis based on type
+        switch (analysisType) {
+            case 'descriptive':
+                // Already calculated above
+                break;
+            case 'inferential':
+                report.inferentialStats = this.calculateInferentialStats(numericData, confidenceLevel);
+                report.hypothesisTests = this.performHypothesisTests(numericData);
+                break;
+            case 'correlation':
+                report.correlations = this.calculateCorrelations(numericData);
+                break;
+            case 'regression':
+                report.inferentialStats = this.performRegressionAnalysis(numericData);
+                break;
+            case 'comprehensive':
+            default:
+                report.inferentialStats = this.calculateInferentialStats(numericData, confidenceLevel);
+                report.correlations = this.calculateCorrelations(numericData);
+                report.hypothesisTests = this.performHypothesisTests(numericData);
+                break;
+        }
+        // Generate recommendations
+        report.recommendations = this.generateRecommendations(report, numericData.length);
+        return report;
+    }
+    classifyDataTypes(data) {
+        const types = new Set();
+        data.forEach(point => {
+            if (/^\d+(\.\d+)?$/.test(point.trim())) {
+                types.add('numeric');
+            }
+            else if (/^(true|false|yes|no|y|n)$/i.test(point.trim())) {
+                types.add('boolean');
+            }
+            else if (/^\d{4}-\d{2}-\d{2}/.test(point.trim())) {
+                types.add('date');
+            }
+            else if (point.includes(',') || point.includes(';')) {
+                types.add('multivalue');
+            }
+            else {
+                types.add('categorical');
+            }
+        });
+        return Array.from(types);
+    }
+    calculateDescriptiveStats(data) {
+        if (data.length === 0)
+            return [];
+        const sorted = [...data].sort((a, b) => a - b);
+        const n = data.length;
+        const sum = data.reduce((acc, val) => acc + val, 0);
+        const mean = sum / n;
+        const variance = data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / (n - 1);
+        const stdDev = Math.sqrt(variance);
+        const q1 = this.percentile(sorted, 0.25);
+        const median = this.percentile(sorted, 0.5);
+        const q3 = this.percentile(sorted, 0.75);
+        const iqr = q3 - q1;
+        return [
+            {
+                metric: 'Sample Size (n)',
+                value: n,
+                interpretation: `Dataset contains ${n} numeric observations${n < 30 ? ' (small sample)' : n < 100 ? ' (medium sample)' : ' (large sample)'}`
+            },
+            {
+                metric: 'Mean',
+                value: Math.round(mean * 1000) / 1000,
+                interpretation: `Average value is ${mean.toFixed(3)}`
+            },
+            {
+                metric: 'Standard Deviation',
+                value: Math.round(stdDev * 1000) / 1000,
+                interpretation: `Data spread: ${stdDev < mean * 0.1 ? 'low variability' : stdDev < mean * 0.3 ? 'moderate variability' : 'high variability'}`
+            },
+            {
+                metric: 'Median',
+                value: Math.round(median * 1000) / 1000,
+                interpretation: `Middle value is ${median.toFixed(3)}${Math.abs(mean - median) < stdDev * 0.1 ? ' (symmetric distribution)' : ' (skewed distribution)'}`
+            },
+            {
+                metric: 'Range',
+                value: Math.round((sorted[n - 1] - sorted[0]) * 1000) / 1000,
+                interpretation: `Data spans from ${sorted[0].toFixed(3)} to ${sorted[n - 1].toFixed(3)}`
+            },
+            {
+                metric: 'Interquartile Range (IQR)',
+                value: Math.round(iqr * 1000) / 1000,
+                interpretation: `Middle 50% of data spans ${iqr.toFixed(3)} units`
+            }
+        ];
+    }
+    calculateInferentialStats(data, confidenceLevel) {
+        const n = data.length;
+        const mean = data.reduce((acc, val) => acc + val, 0) / n;
+        const stdDev = Math.sqrt(data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / (n - 1));
+        const stdError = stdDev / Math.sqrt(n);
+        // T-distribution critical value (approximation)
+        const alpha = 1 - confidenceLevel;
+        const tCritical = this.getTCritical(n - 1, alpha / 2);
+        const marginError = tCritical * stdError;
+        const ciLower = mean - marginError;
+        const ciUpper = mean + marginError;
+        return [
+            {
+                metric: 'Standard Error of Mean',
+                value: Math.round(stdError * 1000) / 1000,
+                interpretation: `Precision of sample mean estimate: ±${stdError.toFixed(3)}`,
+                significance: stdError < stdDev * 0.1 ? 'high' : stdError < stdDev * 0.3 ? 'moderate' : 'low'
+            },
+            {
+                metric: `${(confidenceLevel * 100)}% Confidence Interval`,
+                value: Math.round(marginError * 1000) / 1000,
+                interpretation: `Population mean likely between ${ciLower.toFixed(3)} and ${ciUpper.toFixed(3)}`,
+                significance: marginError < stdDev * 0.2 ? 'high' : marginError < stdDev * 0.5 ? 'moderate' : 'low'
+            }
+        ];
+    }
+    calculateCorrelations(data) {
+        if (data.length < 4)
+            return [];
+        // Create pairs for correlation analysis (adjacent values, lag-1 autocorrelation)
+        const pairs = [];
+        for (let i = 0; i < data.length - 1; i++) {
+            pairs.push([data[i], data[i + 1]]);
+        }
+        if (pairs.length < 3)
+            return [];
+        const correlation = this.calculatePearsonCorrelation(pairs);
+        const nPairs = pairs.length;
+        // Test for significance (approximate)
+        const tStat = correlation * Math.sqrt((nPairs - 2) / (1 - correlation * correlation));
+        const significant = Math.abs(tStat) > 2.0; // Rough t-critical for p < 0.05
+        return [
+            {
+                metric: 'Serial Correlation (Lag-1)',
+                value: Math.round(correlation * 1000) / 1000,
+                interpretation: `${Math.abs(correlation) < 0.3 ? 'Weak' : Math.abs(correlation) < 0.7 ? 'Moderate' : 'Strong'} ${correlation > 0 ? 'positive' : 'negative'} correlation between consecutive values${significant ? ' (significant)' : ' (not significant)'}`,
+                significance: Math.abs(correlation) < 0.3 ? 'low' : Math.abs(correlation) < 0.7 ? 'moderate' : 'high'
+            }
+        ];
+    }
+    performHypothesisTests(data) {
+        const n = data.length;
+        const mean = data.reduce((acc, val) => acc + val, 0) / n;
+        const stdDev = Math.sqrt(data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / (n - 1));
+        const tests = [];
+        // One-sample t-test against zero
+        const tStat = mean / (stdDev / Math.sqrt(n));
+        const pValue = this.calculatePValue(Math.abs(tStat), n - 1);
+        tests.push({
+            hypothesis: 'H0: Population mean = 0',
+            testType: 'One-sample t-test',
+            pValue: Math.round(pValue * 1000) / 1000,
+            significant: pValue < 0.05,
+            conclusion: pValue < 0.05 ? 'Reject H0: Mean significantly different from zero' : 'Fail to reject H0: Mean not significantly different from zero'
+        });
+        // Normality test (simplified Shapiro-Wilk approximation)
+        if (n >= 3 && n <= 50) {
+            const normalityP = this.simpleNormalityTest(data);
+            tests.push({
+                hypothesis: 'H0: Data follows normal distribution',
+                testType: 'Normality test (approximate)',
+                pValue: Math.round(normalityP * 1000) / 1000,
+                significant: normalityP < 0.05,
+                conclusion: normalityP < 0.05 ? 'Reject H0: Data not normally distributed' : 'Fail to reject H0: Data appears normally distributed'
+            });
+        }
+        return tests;
+    }
+    performRegressionAnalysis(data) {
+        if (data.length < 4)
+            return [];
+        // Simple linear regression: y = data values, x = index (time trend)
+        const n = data.length;
+        const xValues = Array.from({ length: n }, (_, i) => i + 1);
+        const yValues = data;
+        const xMean = xValues.reduce((a, b) => a + b, 0) / n;
+        const yMean = yValues.reduce((a, b) => a + b, 0) / n;
+        const numerator = xValues.reduce((sum, x, i) => sum + (x - xMean) * (yValues[i] - yMean), 0);
+        const denominator = xValues.reduce((sum, x) => sum + Math.pow(x - xMean, 2), 0);
+        const slope = numerator / denominator;
+        const intercept = yMean - slope * xMean;
+        // Calculate R-squared
+        const yPredicted = xValues.map(x => intercept + slope * x);
+        const ssRes = yValues.reduce((sum, y, i) => sum + Math.pow(y - yPredicted[i], 2), 0);
+        const ssTot = yValues.reduce((sum, y) => sum + Math.pow(y - yMean, 2), 0);
+        const rSquared = 1 - (ssRes / ssTot);
+        return [
+            {
+                metric: 'Trend Slope',
+                value: Math.round(slope * 1000) / 1000,
+                interpretation: `Data shows ${Math.abs(slope) < 0.1 ? 'minimal' : Math.abs(slope) < 1 ? 'moderate' : 'strong'} ${slope > 0 ? 'upward' : 'downward'} trend`,
+                significance: Math.abs(slope) < 0.1 ? 'low' : Math.abs(slope) < 1 ? 'moderate' : 'high'
+            },
+            {
+                metric: 'R-squared',
+                value: Math.round(rSquared * 1000) / 1000,
+                interpretation: `Trend explains ${(rSquared * 100).toFixed(1)}% of variance${rSquared > 0.7 ? ' (strong fit)' : rSquared > 0.3 ? ' (moderate fit)' : ' (weak fit)'}`,
+                significance: rSquared > 0.7 ? 'high' : rSquared > 0.3 ? 'moderate' : 'low'
+            }
+        ];
+    }
+    generateRecommendations(report, dataSize) {
+        const recommendations = [];
+        // Sample size recommendations
+        if (dataSize < 30) {
+            recommendations.push('Consider collecting more data points (n≥30) for more reliable statistical inference');
+        }
+        // Normality recommendations
+        const normalityTest = report.hypothesisTests?.find(test => test.hypothesis.includes('normal'));
+        if (normalityTest && normalityTest.significant) {
+            recommendations.push('Data appears non-normal; consider non-parametric tests or data transformation');
+        }
+        // Correlation recommendations
+        const correlation = report.correlations?.find(corr => corr.metric.includes('Correlation'));
+        if (correlation && Math.abs(correlation.value) > 0.5) {
+            recommendations.push('Strong serial correlation detected; consider time series analysis methods');
+        }
+        // Variance recommendations
+        const stdDev = report.descriptiveStats.find(stat => stat.metric === 'Standard Deviation');
+        const mean = report.descriptiveStats.find(stat => stat.metric === 'Mean');
+        if (stdDev && mean && stdDev.value > Math.abs(mean.value)) {
+            recommendations.push('High variability detected; investigate potential outliers or confounding factors');
+        }
+        // Confidence interval recommendations
+        const ci = report.inferentialStats?.find(stat => stat.metric.includes('Confidence'));
+        if (ci && ci.significance === 'low') {
+            recommendations.push('Wide confidence intervals suggest need for larger sample size or reduced measurement error');
+        }
+        // Hypothesis validation recommendations
+        if (report.hypothesisTests && report.hypothesisTests.length > 0) {
+            const significantTests = report.hypothesisTests.filter(test => test.significant);
+            if (significantTests.length > 0) {
+                recommendations.push('Significant statistical results found; validate with independent dataset or replication study');
+            }
+        }
+        return recommendations;
+    }
+    // Helper mathematical functions
+    percentile(sortedData, p) {
+        const index = p * (sortedData.length - 1);
+        const lower = Math.floor(index);
+        const upper = Math.ceil(index);
+        const weight = index - lower;
+        if (lower === upper) {
+            return sortedData[lower];
+        }
+        return sortedData[lower] * (1 - weight) + sortedData[upper] * weight;
+    }
+    getTCritical(df, alpha) {
+        // Simplified t-critical values for common cases
+        if (df >= 30)
+            return 1.96; // Normal approximation
+        const tTable = {
+            1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
+            6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
+            15: 2.131, 20: 2.086, 25: 2.060
+        };
+        const closestDf = Object.keys(tTable)
+            .map(Number)
+            .reduce((prev, curr) => Math.abs(curr - df) < Math.abs(prev - df) ? curr : prev);
+        return tTable[closestDf] || 2.0;
+    }
+    calculatePearsonCorrelation(pairs) {
+        const n = pairs.length;
+        const xValues = pairs.map(p => p[0]);
+        const yValues = pairs.map(p => p[1]);
+        const xMean = xValues.reduce((a, b) => a + b, 0) / n;
+        const yMean = yValues.reduce((a, b) => a + b, 0) / n;
+        const numerator = pairs.reduce((sum, [x, y]) => sum + (x - xMean) * (y - yMean), 0);
+        const xVariance = xValues.reduce((sum, x) => sum + Math.pow(x - xMean, 2), 0);
+        const yVariance = yValues.reduce((sum, y) => sum + Math.pow(y - yMean, 2), 0);
+        return numerator / Math.sqrt(xVariance * yVariance);
+    }
+    calculatePValue(tStat, df) {
+        // Simplified p-value calculation (approximation)
+        if (Math.abs(tStat) > 3)
+            return 0.001;
+        if (Math.abs(tStat) > 2.5)
+            return 0.01;
+        if (Math.abs(tStat) > 2)
+            return 0.05;
+        if (Math.abs(tStat) > 1.5)
+            return 0.1;
+        return 0.2;
+    }
+    simpleNormalityTest(data) {
+        // Simplified normality test based on skewness and kurtosis
+        const n = data.length;
+        const mean = data.reduce((a, b) => a + b, 0) / n;
+        const variance = data.reduce((sum, x) => sum + Math.pow(x - mean, 2), 0) / n;
+        const stdDev = Math.sqrt(variance);
+        const skewness = data.reduce((sum, x) => sum + Math.pow((x - mean) / stdDev, 3), 0) / n;
+        const kurtosis = data.reduce((sum, x) => sum + Math.pow((x - mean) / stdDev, 4), 0) / n - 3;
+        // Rough approximation: reject normality if |skewness| > 1 or |kurtosis| > 1
+        const normalityScore = Math.abs(skewness) + Math.abs(kurtosis);
+        if (normalityScore > 2)
+            return 0.01;
+        if (normalityScore > 1)
+            return 0.05;
+        if (normalityScore > 0.5)
+            return 0.1;
+        return 0.5;
+    }
+    formatDataAnalysisReport(report, analysisType) {
+        let summary = `## 📊 Statistical Data Analysis Report\n\n`;
+        summary += `**Analysis Type:** ${analysisType.charAt(0).toUpperCase() + analysisType.slice(1)}\n`;
+        summary += `**Dataset:** ${report.datasetSummary.sampleSize} observations\n`;
+        summary += `**Data Types:** ${report.datasetSummary.dataTypes.join(', ')}\n\n`;
+        // Dataset Summary
+        summary += `### 📋 Dataset Summary\n`;
+        summary += `• **Sample Size:** ${report.datasetSummary.sampleSize}\n`;
+        summary += `• **Data Types Detected:** ${report.datasetSummary.dataTypes.join(', ')}\n`;
+        if (report.datasetSummary.dataPoints.length > 0) {
+            summary += `• **Sample Data:** ${report.datasetSummary.dataPoints.slice(0, 5).join(', ')}${report.datasetSummary.sampleSize > 5 ? '...' : ''}\n\n`;
+        }
+        // Descriptive Statistics
+        summary += `### 📈 Descriptive Statistics\n`;
+        report.descriptiveStats.forEach(stat => {
+            const significanceEmoji = stat.significance === 'high' ? '🟢' : stat.significance === 'moderate' ? '🟡' : '🔴';
+            summary += `• **${stat.metric}:** ${stat.value} ${stat.significance ? significanceEmoji : ''}\n`;
+            summary += `  ${stat.interpretation}\n\n`;
+        });
+        // Inferential Statistics
+        if (report.inferentialStats && report.inferentialStats.length > 0) {
+            summary += `### 🔬 Inferential Statistics\n`;
+            report.inferentialStats.forEach(stat => {
+                const significanceEmoji = stat.significance === 'high' ? '🟢' : stat.significance === 'moderate' ? '🟡' : '🔴';
+                summary += `• **${stat.metric}:** ${stat.value} ${stat.significance ? significanceEmoji : ''}\n`;
+                summary += `  ${stat.interpretation}\n\n`;
+            });
+        }
+        // Correlations
+        if (report.correlations && report.correlations.length > 0) {
+            summary += `### 🔗 Correlation Analysis\n`;
+            report.correlations.forEach(corr => {
+                const significanceEmoji = corr.significance === 'high' ? '🟢' : corr.significance === 'moderate' ? '🟡' : '🔴';
+                summary += `• **${corr.metric}:** ${corr.value} ${corr.significance ? significanceEmoji : ''}\n`;
+                summary += `  ${corr.interpretation}\n\n`;
+            });
+        }
+        // Hypothesis Tests
+        if (report.hypothesisTests && report.hypothesisTests.length > 0) {
+            summary += `### 🧪 Hypothesis Testing\n`;
+            report.hypothesisTests.forEach(test => {
+                const resultEmoji = test.significant ? '✅' : '❌';
+                summary += `• **${test.testType}** ${resultEmoji}\n`;
+                summary += `  **Hypothesis:** ${test.hypothesis}\n`;
+                summary += `  **p-value:** ${test.pValue}\n`;
+                summary += `  **Result:** ${test.conclusion}\n\n`;
+            });
+        }
+        // Recommendations
+        if (report.recommendations.length > 0) {
+            summary += `### 💡 Statistical Recommendations\n`;
+            report.recommendations.forEach(rec => {
+                summary += `• ${rec}\n`;
+            });
+            summary += '\n';
+        }
+        // Analysis Summary
+        summary += `### 📋 Analysis Summary\n`;
+        const totalTests = (report.hypothesisTests || []).length;
+        const significantTests = (report.hypothesisTests || []).filter(test => test.significant).length;
+        const avgSignificance = report.descriptiveStats.filter(stat => stat.significance).length;
+        summary += `• **Statistical Tests:** ${totalTests} performed, ${significantTests} significant\n`;
+        summary += `• **Data Quality:** ${avgSignificance > 3 ? 'High' : avgSignificance > 1 ? 'Moderate' : 'Limited'} statistical power\n`;
+        summary += `• **Recommendation:** ${report.recommendations.length > 2 ? 'Multiple improvements suggested' : report.recommendations.length > 0 ? 'Some improvements recommended' : 'Data appears adequate for analysis'}\n\n`;
+        summary += `💡 **Next Steps:** Use these results to validate hypotheses and inform research conclusions.`;
+        return summary;
     }
     peer_review_simulation(input) {
         return this.safeExecute(() => {
@@ -745,13 +1339,20 @@ class ScientificMethodEngine {
         }, 'check_for_breakthrough');
     }
 }
-export const configSchema = z.object({});
+export const configSchema = z.object({
+    webSearch: z.object({
+        enabled: z.boolean().default(true),
+        preferReal: z.boolean().default(true),
+        fallbackToSimulation: z.boolean().default(true),
+        availableTools: z.array(z.string()).optional().describe("Available web search tools like 'WebSearch', 'WebFetch'")
+    }).optional()
+});
 export function createCognatusServer({ config }) {
     const server = new McpServer({
         name: "cognatus-server",
         version: "1.0.0",
     });
-    const engine = new ScientificMethodEngine();
+    const engine = new ScientificMethodEngine(config.webSearch);
     // Primary unified scientific thinking tool
     server.tool("scientific_thinking", "Complete scientific research process with sequential 7-stage workflow", {
         stage: z.enum(["observation", "literature_review", "hypothesis_formation", "experiment_design", "data_collection", "analysis", "conclusion"]).optional().describe("Specific stage to execute, or omit to run the next stage in sequence"),
@@ -775,7 +1376,7 @@ export function createCognatusServer({ config }) {
                     result = engine.observation({ problemStatement: input.input });
                     break;
                 case Stage.LiteratureReview:
-                    result = engine.literature_review({ literature: input.input });
+                    result = await engine.literature_review({ literature: input.input });
                     break;
                 case Stage.HypothesisFormation:
                     result = engine.hypothesis_formation({ hypothesis: input.input });
@@ -811,7 +1412,10 @@ export function createCognatusServer({ config }) {
     });
     // Individual stage tools for granular control
     server.tool("observation", "Problem identification", { problemStatement: z.string() }, async (input) => engine.observation(input));
-    server.tool("literature_review", "Background research", { literature: z.string() }, async (input) => engine.literature_review(input));
+    server.tool("literature_review", "Background research with optional automatic web search", {
+        literature: z.string(),
+        autoSearch: z.boolean().optional().describe("Enable automatic web search based on problem statement")
+    }, async (input) => engine.literature_review(input));
     server.tool("hypothesis_formation", "Generate a single testable hypothesis", { hypothesis: z.string() }, async (input) => engine.hypothesis_formation(input));
     server.tool("hypothesis_generation", "Create multiple competing hypotheses", { hypotheses: z.array(z.string()) }, async (input) => engine.hypothesis_generation(input));
     server.tool("experiment_design", "Design testing methodology", { experiment: z.string() }, async (input) => engine.experiment_design(input));

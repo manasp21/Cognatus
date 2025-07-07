@@ -97,6 +97,29 @@ interface DataAnalysisReport {
   recommendations: string[];
 }
 
+interface WebSearchConfig {
+  enabled: boolean;
+  preferReal: boolean;
+  fallbackToSimulation: boolean;
+  availableTools?: string[];
+}
+
+interface WebSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  source: string;
+  date?: string;
+}
+
+interface WebSearchResponse {
+  results: WebSearchResult[];
+  totalResults: number;
+  searchTime: number;
+  query: string;
+  source: 'real' | 'simulated';
+}
+
 interface ResearchState {
   currentStage: Stage;
   problemStatement: string | null;
@@ -108,11 +131,130 @@ interface ResearchState {
   conclusions: string[];
 }
 
+class WebSearchService {
+  private config: WebSearchConfig;
+  private availableTools: Set<string>;
+
+  constructor(config: WebSearchConfig = { enabled: true, preferReal: true, fallbackToSimulation: true }) {
+    this.config = config;
+    this.availableTools = new Set(config.availableTools || []);
+  }
+
+  public async search(query: string, options: { 
+    limit?: number; 
+    academic?: boolean; 
+    yearFrom?: number; 
+    yearTo?: number; 
+  } = {}): Promise<WebSearchResponse> {
+    const startTime = Date.now();
+    
+    if (!this.config.enabled) {
+      return this.simulateSearch(query, options, startTime);
+    }
+
+    // Try real web search first if preferred and available
+    if (this.config.preferReal && this.hasWebSearchTools()) {
+      try {
+        const realResult = await this.performRealSearch(query, options);
+        if (realResult) {
+          return {
+            ...realResult,
+            searchTime: Date.now() - startTime,
+            source: 'real' as const
+          };
+        }
+      } catch (error) {
+        console.error('Real web search failed:', error);
+        if (!this.config.fallbackToSimulation) {
+          throw error;
+        }
+      }
+    }
+
+    // Fallback to simulation
+    return this.simulateSearch(query, options, startTime);
+  }
+
+  private hasWebSearchTools(): boolean {
+    return this.availableTools.has('WebSearch') || this.availableTools.has('WebFetch');
+  }
+
+  private async performRealSearch(query: string, options: any): Promise<WebSearchResponse | null> {
+    // This would integrate with actual web search tools available in the MCP context
+    // For now, we'll return null to indicate real search is not available
+    // In a real implementation, this would call the available web search tools
+    
+    // Example implementation would be:
+    // if (this.availableTools.has('WebSearch')) {
+    //   return await this.callWebSearchTool(query, options);
+    // }
+    
+    return null;
+  }
+
+  private simulateSearch(query: string, options: any, startTime: number): WebSearchResponse {
+    const results: WebSearchResult[] = this.generateSimulatedResults(query, options.limit || 10);
+    
+    return {
+      results,
+      totalResults: results.length,
+      searchTime: Date.now() - startTime,
+      query,
+      source: 'simulated' as const
+    };
+  }
+
+  private generateSimulatedResults(query: string, limit: number): WebSearchResult[] {
+    const results: WebSearchResult[] = [];
+    const currentYear = new Date().getFullYear();
+    
+    // Generate realistic web search results
+    for (let i = 0; i < limit; i++) {
+      const year = currentYear - Math.floor(Math.random() * 5);
+      results.push({
+        title: `${query}: Research and Analysis - Study ${i + 1}`,
+        url: `https://example.com/research/${query.toLowerCase().replace(/\s+/g, '-')}-${i + 1}`,
+        snippet: `Recent research on ${query} shows significant findings in this area. This study examines the implications and provides new insights into ${query} methodology and applications.`,
+        source: 'Academic Research Portal',
+        date: `${year}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
+      });
+    }
+    
+    return results;
+  }
+
+  public formatWebSearchForLiterature(response: WebSearchResponse): string {
+    let formatted = `## 🔍 Literature Search Results\n\n`;
+    formatted += `**Query:** "${response.query}"\n`;
+    formatted += `**Source:** ${response.source === 'real' ? '🌐 Real web search' : '🔬 Simulated search'}\n`;
+    formatted += `**Results:** ${response.results.length} of ${response.totalResults}\n`;
+    formatted += `**Search Time:** ${response.searchTime}ms\n\n`;
+    
+    response.results.forEach((result, index) => {
+      formatted += `### ${index + 1}. ${result.title}\n`;
+      formatted += `**Source:** ${result.source}\n`;
+      if (result.date) {
+        formatted += `**Date:** ${result.date}\n`;
+      }
+      formatted += `**URL:** ${result.url}\n`;
+      formatted += `**Summary:** ${result.snippet}\n\n`;
+    });
+    
+    if (response.source === 'simulated') {
+      formatted += `💡 **Note:** These are simulated results. For real research, enable web search tools in your MCP configuration.\n\n`;
+    }
+    
+    return formatted;
+  }
+}
+
 class ScientificMethodEngine {
   public state: ResearchState;
+  private webSearchService: WebSearchService;
 
-  constructor() {
+  constructor(webSearchConfig?: WebSearchConfig) {
     this.state = this.getInitialState();
+    this.webSearchService = new WebSearchService(webSearchConfig);
   }
 
   private getInitialState(): ResearchState {
@@ -172,9 +314,19 @@ class ScientificMethodEngine {
     }
   }
 
-  private safeExecute(operation: () => { content: Array<{ type: "text"; text: string }> }, context: string): { content: Array<{ type: "text"; text: string }> } {
+  private safeExecute(operation: () => { content: Array<{ type: "text"; text: string }> }, context: string): { content: Array<{ type: "text"; text: string }> };
+  private safeExecute(operation: () => Promise<{ content: Array<{ type: "text"; text: string }> }>, context: string): Promise<{ content: Array<{ type: "text"; text: string }> }>;
+  private safeExecute(operation: (() => { content: Array<{ type: "text"; text: string }> }) | (() => Promise<{ content: Array<{ type: "text"; text: string }> }>), context: string): { content: Array<{ type: "text"; text: string }> } | Promise<{ content: Array<{ type: "text"; text: string }> }> {
     try {
-      return operation();
+      const result = operation();
+      if (result instanceof Promise) {
+        return result.catch((error) => {
+          const errorMsg = `Error in ${context}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          this.log(errorMsg, 'error');
+          return { content: [{ type: "text", text: errorMsg }] };
+        });
+      }
+      return result;
     } catch (error) {
       const errorMsg = `Error in ${context}: ${error instanceof Error ? error.message : 'Unknown error'}`;
       this.log(errorMsg, 'error');
@@ -198,20 +350,90 @@ class ScientificMethodEngine {
     }, 'observation');
   }
 
-  public literature_review(input: unknown): { content: Array<{ type: "text"; text: string }> } {
-    return this.safeExecute(() => {
+  public async literature_review(input: unknown): Promise<{ content: Array<{ type: "text"; text: string }> }> {
+    return this.safeExecute(async () => {
       this.validateInput(input, ['literature']);
-      const { literature } = input as { literature: string };
+      const { literature, autoSearch = false } = input as { literature: string; autoSearch?: boolean };
       
       if (literature.length < 20) {
         throw new Error('Literature review must be at least 20 characters long');
       }
       
+      let finalOutput = `Literature review added: ${literature}`;
+      
+      // Add automatic web search if enabled and we have a problem statement
+      if (autoSearch && this.state.problemStatement) {
+        try {
+          this.log('Performing automatic literature search based on problem statement', 'info');
+          
+          // Generate search queries from problem statement
+          const searchQueries = this.generateSearchQueries(this.state.problemStatement);
+          let webSearchResults = '';
+          
+          for (const query of searchQueries.slice(0, 2)) { // Limit to 2 queries to avoid overwhelming
+            const searchResponse = await this.webSearchService.search(query, {
+              limit: 3,
+              academic: true
+            });
+            
+            if (searchResponse.results.length > 0) {
+              webSearchResults += `\n\n### 🔍 Auto-Search Results for "${query}"\n`;
+              webSearchResults += `**Source:** ${searchResponse.source === 'real' ? 'Real web search' : 'Simulated search'}\n\n`;
+              
+              searchResponse.results.forEach((result, index) => {
+                webSearchResults += `${index + 1}. **${result.title}**\n`;
+                webSearchResults += `   ${result.snippet}\n`;
+                webSearchResults += `   Source: ${result.source} | URL: ${result.url}\n\n`;
+              });
+            }
+          }
+          
+          if (webSearchResults) {
+            finalOutput += `\n\n## 📚 Automatic Literature Search Results\n${webSearchResults}`;
+            finalOutput += `\n💡 **Tip:** Use the \`literature_search\` tool for more comprehensive academic database searches.`;
+          }
+          
+        } catch (error) {
+          this.log(`Auto-search failed: ${error}`, 'warning');
+          finalOutput += `\n\n⚠️ **Note:** Automatic literature search failed. Consider using the \`literature_search\` tool manually.`;
+        }
+      } else if (autoSearch && !this.state.problemStatement) {
+        finalOutput += `\n\n💡 **Tip:** Complete the observation stage first to enable automatic literature search based on your problem statement.`;
+      }
+      
       this.state.literature.push(literature);
       this.log(`Literature added: ${literature}`);
       this.transitionTo(Stage.HypothesisFormation);
-      return { content: [{ type: "text", text: `Literature added. Current stage: ${this.state.currentStage}` }] };
+      return { content: [{ type: "text" as const, text: finalOutput }] };
     }, 'literature_review');
+  }
+  
+  private generateSearchQueries(problemStatement: string): string[] {
+    // Extract key terms and generate search queries
+    const queries: string[] = [];
+    
+    // Simple keyword extraction (in a real implementation, this could be more sophisticated)
+    const cleanedStatement = problemStatement.toLowerCase();
+    
+    // Generate different query variations
+    queries.push(problemStatement.slice(0, 50)); // First 50 chars as base query
+    
+    // Extract potential key terms
+    const terms = cleanedStatement.split(/\s+/).filter(term => 
+      term.length > 4 && 
+      !['that', 'with', 'this', 'from', 'they', 'have', 'been', 'will', 'were', 'what', 'when', 'where', 'how'].includes(term)
+    );
+    
+    if (terms.length >= 2) {
+      queries.push(`${terms[0]} ${terms[1]} research`);
+      queries.push(`${terms[0]} ${terms[1]} study`);
+    }
+    
+    if (terms.length >= 3) {
+      queries.push(`${terms[0]} ${terms[1]} ${terms[2]}`);
+    }
+    
+    return queries.filter(q => q.length > 10); // Filter out too short queries
   }
 
   public hypothesis_formation(input: unknown): { content: Array<{ type: "text"; text: string }> } {
@@ -281,8 +503,8 @@ class ScientificMethodEngine {
     return { content: [{ type: "text", text: `Conclusion drawn. Research complete.` }] };
   }
   
-  public literature_search(input: unknown): { content: Array<{ type: "text"; text: string }> } {
-    return this.safeExecute(() => {
+  public async literature_search(input: unknown): Promise<{ content: Array<{ type: "text"; text: string }> }> {
+    return this.safeExecute(async () => {
       this.validateInput(input, ['query']);
       const params = input as LiteratureSearchInput;
       const { query, database = 'scholar', limit = 10, yearFrom, yearTo } = params;
@@ -291,7 +513,37 @@ class ScientificMethodEngine {
         throw new Error('Search query must be at least 3 characters long');
       }
       
-      // Generate realistic search results
+      // Try web search first, then fallback to academic database simulation
+      try {
+        const webSearchResponse = await this.webSearchService.search(query, {
+          limit: Math.min(limit, 5), // Limit web search results
+          academic: true,
+          yearFrom,
+          yearTo
+        });
+        
+        if (webSearchResponse.source === 'real') {
+          // Use real web search results
+          const webSearchSummary = this.webSearchService.formatWebSearchForLiterature(webSearchResponse);
+          
+          // Also generate academic database results for comparison
+          const academicResults = this.generateLiteratureResults(query, database, limit - webSearchResponse.results.length, yearFrom, yearTo);
+          const academicSummary = this.formatLiteratureSearchResults(academicResults, query, database);
+          
+          const combinedSummary = `${webSearchSummary}\n---\n\n## 📚 Academic Database Results\n\n${academicSummary}`;
+          
+          // Add to literature state for future reference
+          const literatureEntry = `Literature search: "${query}" via web search + ${database} (${webSearchResponse.results.length + academicResults.length} results)`;
+          this.state.literature.push(literatureEntry);
+          
+          this.log(`Literature search completed: ${webSearchResponse.results.length} web + ${academicResults.length} academic results for "${query}"`, 'success');
+          return { content: [{ type: "text" as const, text: combinedSummary }] };
+        }
+      } catch (error) {
+        this.log(`Web search failed, falling back to academic database simulation: ${error}`, 'warning');
+      }
+      
+      // Fallback to academic database simulation
       const results = this.generateLiteratureResults(query, database, limit, yearFrom, yearTo);
       const summary = this.formatLiteratureSearchResults(results, query, database);
       
@@ -300,7 +552,7 @@ class ScientificMethodEngine {
       this.state.literature.push(literatureEntry);
       
       this.log(`Literature search completed: ${results.length} results for "${query}" in ${database}`, 'success');
-      return { content: [{ type: "text", text: summary }] };
+      return { content: [{ type: "text" as const, text: summary }] };
     }, 'literature_search');
   }
 
@@ -1428,7 +1680,7 @@ class ScientificMethodEngine {
 }
 
   interface ObservationInput { problemStatement: string; }
-interface LiteratureReviewInput { literature: string; }
+interface LiteratureReviewInput { literature: string; autoSearch?: boolean; }
 interface HypothesisFormationInput { hypothesis: string; }
 interface HypothesisGenerationInput { hypotheses: string[]; }
 interface ExperimentDesignInput { experiment: string; }
@@ -1439,7 +1691,14 @@ interface LiteratureSearchInput { query: string; }
 interface DataAnalysisInput { data: string[]; }
 interface ScoreHypothesisInput { hypothesisId: string; score: number; }
 
-export const configSchema = z.object({});
+export const configSchema = z.object({
+  webSearch: z.object({
+    enabled: z.boolean().default(true),
+    preferReal: z.boolean().default(true),
+    fallbackToSimulation: z.boolean().default(true),
+    availableTools: z.array(z.string()).optional().describe("Available web search tools like 'WebSearch', 'WebFetch'")
+  }).optional()
+});
 
 export function createCognatusServer({ config }: { config: z.infer<typeof configSchema> }) {
   const server = new McpServer({
@@ -1447,7 +1706,7 @@ export function createCognatusServer({ config }: { config: z.infer<typeof config
     version: "1.0.0",
   });
 
-  const engine = new ScientificMethodEngine();
+  const engine = new ScientificMethodEngine(config.webSearch);
 
   // Primary unified scientific thinking tool
   server.tool(
@@ -1478,7 +1737,7 @@ export function createCognatusServer({ config }: { config: z.infer<typeof config
             result = engine.observation({ problemStatement: input.input });
             break;
           case Stage.LiteratureReview:
-            result = engine.literature_review({ literature: input.input });
+            result = await engine.literature_review({ literature: input.input });
             break;
           case Stage.HypothesisFormation:
             result = engine.hypothesis_formation({ hypothesis: input.input });
@@ -1525,9 +1784,12 @@ export function createCognatusServer({ config }: { config: z.infer<typeof config
 
   server.tool(
     "literature_review",
-    "Background research",
-    { literature: z.string() },
-    async (input: LiteratureReviewInput) => engine.literature_review(input)
+    "Background research with optional automatic web search",
+    { 
+      literature: z.string(),
+      autoSearch: z.boolean().optional().describe("Enable automatic web search based on problem statement")
+    },
+    async (input: { literature: string; autoSearch?: boolean }) => engine.literature_review(input)
   );
 
   server.tool(

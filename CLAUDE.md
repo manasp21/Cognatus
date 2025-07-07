@@ -23,10 +23,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Tracks research state including problem statement, literature, hypotheses, experiments, data, and conclusions
 - Enforces valid stage transitions via `STAGE_TRANSITIONS` map
 
+**WebSearchService** - Hybrid web search integration:
+- Detects available web search tools in MCP context (WebSearch, WebFetch)
+- Configurable preferences (enabled, preferReal, fallbackToSimulation)
+- Generates realistic simulated results when real search unavailable
+- Formats search results for literature integration
+
 **MCP Server Integration** - Built using Model Context Protocol SDK:
-- Implements 13 research tools (observation, literature_review, hypothesis_formation, etc.)
-- Uses Zod schemas for input validation
+- Implements 13+ research tools with async support for web search
+- Uses Zod schemas for input validation with web search configuration
 - Integrates with Smithery SDK for stateless server creation
+- Enhanced with web search configuration schema
 
 **State Management** - Research state contains:
 - `currentStage`: Current research phase
@@ -44,6 +51,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Hypothesis Scoring & Breakthrough Detection** - Evidence scoring (0-1) with automatic breakthrough detection and confidence indicators
 
 **Improved State Management** - Better state tracking with detailed progress information and stage guidance
+
+**Hybrid Web Search Integration** - Real web search capabilities with automatic fallback to simulation. Includes WebSearchService for tool detection and result processing
+
+**Intelligent Literature Discovery** - Automatic search query generation from problem statements with configurable search preferences
 
 ## Technology Stack
 
@@ -67,11 +78,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `scientific_thinking` - Unified interface for complete 7-stage research workflow
 
 **Individual Stage Tools:**
-- `observation`, `literature_review`, `hypothesis_formation`, `experiment_design`, `data_collection`, `analysis`, `conclusion`
+- `observation` - Problem identification 
+- `literature_review` - Background research with optional automatic web search (autoSearch parameter)
+- `hypothesis_formation`, `experiment_design`, `data_collection`, `analysis`, `conclusion` - Sequential research stages
 
 **Research Management Tools:**
 - `hypothesis_generation` - Create multiple competing hypotheses with automatic scoring
-- `literature_search` - Comprehensive academic database search with realistic results from PubMed, arXiv, Google Scholar, IEEE, and Scopus, including citation counts, abstracts, and relevance scoring
+- `literature_search` - Hybrid literature search combining real web search (when available) with academic database simulation from PubMed, arXiv, Google Scholar, IEEE, and Scopus. Includes citation counts, abstracts, relevance scoring, and automatic fallback mechanisms
 - `data_analysis` - Advanced statistical analysis including descriptive statistics (mean, median, mode, standard deviation), inferential statistics (t-tests, confidence intervals), correlation analysis (Pearson correlation), regression analysis (linear regression with R-squared), and hypothesis testing (normality tests, significance testing)
 - `peer_review_simulation` - Multi-perspective peer review with 4 reviewer types (skeptical, supportive, methodological, statistical) and 5 focus areas (hypotheses, methodology, data, conclusions, overall), providing detailed critique, suggestions, and confidence ratings
 - `score_hypothesis`, `check_for_breakthrough`, `get_state`

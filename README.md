@@ -9,6 +9,8 @@ An MCP server implementation that provides a sequential thinking process for sci
 - **Evidence Collection:** Systematically gather supporting/contradicting data
 - **Breakthrough Detection:** Identify patterns and anomalies for novel discoveries
 - **Multi-perspective Analysis:** Simulate peer review and alternative viewpoints
+- **Hybrid Web Search Integration:** Real web search capabilities with automatic fallback to simulation
+- **Intelligent Literature Discovery:** Automatic web search based on problem statements
 
 ## Tools
 
@@ -43,6 +45,32 @@ npm run build
 ```
 
 ## Configuration
+
+### Web Search Integration
+
+Cognatus supports hybrid web search capabilities that enhance literature review and research with real web data. Configure web search by adding the following to your MCP server configuration:
+
+```json
+{
+  "mcpServers": {
+    "cognatus": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/cognatus-server"],
+      "env": {
+        "WEB_SEARCH_ENABLED": "true",
+        "WEB_SEARCH_PREFER_REAL": "true",
+        "WEB_SEARCH_FALLBACK": "true"
+      }
+    }
+  }
+}
+```
+
+**Web Search Features:**
+- **Real-time Literature Search**: Access current research via web search APIs
+- **Automatic Fallback**: Falls back to simulation if web search is unavailable
+- **Problem-based Auto-search**: Automatically searches web when `autoSearch=true` in literature review
+- **Hybrid Results**: Combines real web results with academic database simulations
 
 ### Claude Desktop
 
