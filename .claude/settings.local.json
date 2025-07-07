@@ -9,7 +9,9 @@
       "Bash(find:*)",
       "Bash(npm run build:*)",
       "Bash(timeout:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "WebFetch(domain:smithery.ai)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

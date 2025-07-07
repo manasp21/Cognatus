@@ -1,1 +1,15 @@
-runtime: "typescript"
+build:
+  dockerBuildPath: .
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required: []
+    properties: {}
+    additionalProperties: false
+  commandFunction: |
+    (config) => ({ 
+      command: 'node', 
+      args: ['./dist/src/index.js']
+    })
