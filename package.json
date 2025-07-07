@@ -10,6 +10,7 @@
   "bin": {
     "mcp-server-cognatus": "dist/index.js"
   },
+  "main": "dist/index.js",
   "module": "./src/index.ts",
   "files": [
     "dist"
