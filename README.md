@@ -8,24 +8,29 @@ An MCP server implementation that provides a sequential thinking process for sci
 - **Hypothesis Tracking:** Store and manage multiple hypotheses with evidence
 - **Evidence Collection:** Systematically gather supporting/contradicting data
 - **Breakthrough Detection:** Identify patterns and anomalies for novel discoveries
-- **Multi-perspective Analysis:** Simulate peer review and alternative viewpoints
+- **Multi-perspective Analysis:** Provides guidance for conducting peer review and alternative viewpoints
 - **Ethical Literature Search:** Provides optimized search guidance requiring agents to use real web search tools
 - **Research Integrity:** No fake papers, authors, or citations - only authentic research guidance
 
 ## Tools
 
+- `scientific_thinking` - Complete scientific research process with sequential 7-stage workflow
 - `observation` - Problem identification
 - `literature_review` - Background research  
 - `hypothesis_formation` - Generate testable hypotheses
+- `hypothesis_generation` - Create multiple competing hypotheses
 - `experiment_design` - Design testing methodology
 - `data_collection` - Gather evidence
 - `analysis` - Analyze results
 - `conclusion` - Draw conclusions and refine theory
-- `hypothesis_generation` - Create multiple competing hypotheses
-- `experiment_design` - Design systematic tests
 - `literature_search` - Generate optimized search queries and provide guidance for academic literature search. **Requires agent to use external web search tools** - no fake papers generated
-- `data_analysis` - Advanced statistical analysis including descriptive statistics, inferential statistics, correlation analysis, regression analysis, and hypothesis testing
+- `data_analysis_guidance` - Provides guidance for data analysis - **agent performs the actual statistical calculations**
 - `peer_review_guidance` - Provides guidance for conducting peer review with 4 reviewer styles (skeptical, supportive, methodological, statistical) and 5 focus areas (hypotheses, methodology, data, conclusions, overall) - **agent conducts the actual review**
+- `research_methodology_guidance` - Comprehensive guidance for selecting and implementing research methodologies across all domains (quantitative, qualitative, mixed-methods, theoretical, computational, meta-analysis)
+- `meta_research_guidance` - Research integrity, ethics, reproducibility, and best practices guidance across the entire research lifecycle
+- `score_hypothesis` - Assign evidence scores to specific hypotheses for breakthrough detection
+- `check_for_breakthrough` - Evaluate current research progress and breakthrough potential
+- `get_state` - View comprehensive research state and progress overview
 
 ## Installation
 

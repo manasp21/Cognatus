@@ -183,18 +183,41 @@ class ScientificMethodEngine {
         }, 'hypothesis_formation');
     }
     hypothesis_generation(input) {
-        const { hypotheses } = input;
-        hypotheses.forEach(h => {
-            const newHypothesis = {
-                id: this.generateId(),
-                description: h,
-                evidenceScore: 0,
-            };
-            this.state.hypotheses.push(newHypothesis);
-        });
-        this.log(`Generated ${hypotheses.length} new hypotheses.`);
-        this.transitionTo(Stage.HypothesisFormation);
-        return { content: [{ type: "text", text: `Generated ${hypotheses.length} hypotheses. Current stage: ${this.state.currentStage}` }] };
+        return this.safeExecute(() => {
+            this.validateInput(input, ['hypotheses']);
+            const { hypotheses } = input;
+            if (hypotheses.length === 0) {
+                throw new Error('At least one hypothesis must be provided');
+            }
+            const newHypotheses = [];
+            hypotheses.forEach(h => {
+                const newHypothesis = {
+                    id: this.generateId(),
+                    description: h,
+                    evidenceScore: 0,
+                };
+                this.state.hypotheses.push(newHypothesis);
+                newHypotheses.push(newHypothesis);
+            });
+            let output = `## 🧠 Multiple Hypotheses Generated\n\n`;
+            output += `You now have **${hypotheses.length}** competing hypotheses to test:\n\n`;
+            newHypotheses.forEach((hyp, index) => {
+                output += `**${index + 1}. ID: \`${hyp.id}\`**\n`;
+                output += `${hyp.description}\n`;
+                output += `*Evidence Score: ${hyp.evidenceScore}/1.0*\n\n`;
+            });
+            output += `### 🎯 Next Steps for Research\n`;
+            output += `• **Score Evidence**: Use \`score_hypothesis\` tool with these IDs to assign evidence scores (0.0-1.0)\n`;
+            output += `• **Compare & Contrast**: Analyze how these hypotheses compete or complement each other\n`;
+            output += `• **Design Experiments**: Create tests to validate or refute each hypothesis\n`;
+            output += `• **Gather Data**: Collect evidence that supports or contradicts each hypothesis\n`;
+            output += `• **Update Scores**: Revise evidence scores as new data becomes available\n`;
+            output += `• **Check Progress**: Use \`check_for_breakthrough\` to assess overall research progress\n\n`;
+            output += `💡 **Research Strategy**: Test competing hypotheses systematically to identify the most supported explanation.`;
+            this.log(`Generated ${hypotheses.length} new hypotheses with IDs`);
+            this.transitionTo(Stage.HypothesisFormation);
+            return { content: [{ type: "text", text: output }] };
+        }, 'hypothesis_generation');
     }
     experiment_design(input) {
         const { experiment } = input;
@@ -262,27 +285,127 @@ class ScientificMethodEngine {
         queries.push(`${query} peer reviewed`);
         return queries;
     }
-    data_analysis(input) {
+    data_analysis_guidance(input) {
         return this.safeExecute(() => {
             this.validateInput(input, ['data']);
             const params = input;
             const { data, analysisType = 'comprehensive', targetVariable, confidenceLevel = 0.95 } = params;
             if (data.length < 2) {
-                throw new Error('At least 2 data points are required for statistical analysis');
+                throw new Error('At least 2 data points are required for meaningful analysis');
             }
-            // Parse and validate data
-            const numericData = this.parseDataPoints(data);
-            if (numericData.length === 0) {
-                throw new Error('No valid numeric data found for analysis');
+            let guidance = `## 📊 Data Analysis Guidance\n\n`;
+            guidance += `**Data Summary:** ${data.length} data points provided\n`;
+            guidance += `**Analysis Type Requested:** ${analysisType}\n`;
+            guidance += `**Target Variable:** ${targetVariable || 'Not specified'}\n`;
+            guidance += `**Confidence Level:** ${(confidenceLevel * 100)}%\n\n`;
+            // Analyze data characteristics
+            const dataTypes = this.classifyDataTypes(data);
+            guidance += `### 🔍 Data Characteristics Assessment\n`;
+            guidance += `**Detected Data Types:** ${dataTypes.join(', ')}\n`;
+            // Sample data preview
+            const sampleData = data.slice(0, 5);
+            guidance += `**Sample Data:** ${sampleData.join(', ')}${data.length > 5 ? '...' : ''}\n\n`;
+            // Provide analysis guidance based on data type and analysis request
+            guidance += this.getAnalysisMethodGuidance(dataTypes, analysisType, data.length);
+            guidance += this.getStatisticalTestGuidance(dataTypes, analysisType, data.length);
+            guidance += this.getInterpretationGuidance(analysisType);
+            guidance += `\n### 🎯 Your Next Steps\n`;
+            guidance += `1. **Perform the Analysis**: Use your statistical tools to conduct the recommended analysis\n`;
+            guidance += `2. **Document Results**: Record your findings and statistical outcomes\n`;
+            guidance += `3. **Interpret Findings**: Apply the interpretation framework above\n`;
+            guidance += `4. **Update Research**: Use the \`analysis\` tool to record your completed analysis\n\n`;
+            guidance += `💡 **Remember**: You are the data analyst - use your expertise and statistical software to perform the actual calculations.`;
+            this.log(`Data analysis guidance provided for ${data.length} data points`, 'info');
+            return { content: [{ type: "text", text: guidance }] };
+        }, 'data_analysis_guidance');
+    }
+    getAnalysisMethodGuidance(dataTypes, analysisType, dataSize) {
+        let guidance = `### 📈 Recommended Analysis Methods\n`;
+        if (dataTypes.includes('numeric')) {
+            guidance += `**Quantitative Analysis Recommended:**\n`;
+            switch (analysisType) {
+                case 'descriptive':
+                    guidance += `• **Descriptive Statistics**: Calculate mean, median, mode, standard deviation, range\n`;
+                    guidance += `• **Distribution Analysis**: Assess normality, skewness, kurtosis\n`;
+                    guidance += `• **Visualization**: Create histograms, box plots, scatter plots\n`;
+                    break;
+                case 'inferential':
+                    guidance += `• **Confidence Intervals**: Estimate population parameters\n`;
+                    guidance += `• **Hypothesis Testing**: Choose appropriate tests based on data distribution\n`;
+                    guidance += `• **Power Analysis**: Assess statistical power and effect sizes\n`;
+                    break;
+                case 'correlation':
+                    guidance += `• **Correlation Analysis**: Pearson (normal data) or Spearman (non-normal)\n`;
+                    guidance += `• **Regression Analysis**: Linear or non-linear relationships\n`;
+                    guidance += `• **Multivariate Analysis**: If multiple variables present\n`;
+                    break;
+                case 'comprehensive':
+                default:
+                    guidance += `• **Full Statistical Workup**: Descriptive → Inferential → Relationships\n`;
+                    guidance += `• **Effect Size Calculations**: Practical significance assessment\n`;
+                    guidance += `• **Assumption Testing**: Normality, independence, homoscedasticity\n`;
             }
-            // Perform statistical analysis
-            const report = this.generateStatisticalAnalysis(data, numericData, analysisType, targetVariable, confidenceLevel);
-            const summary = this.formatDataAnalysisReport(report, analysisType);
-            // Update analysis state
-            this.state.analysis = `Statistical analysis completed: ${analysisType} analysis of ${data.length} data points (${numericData.length} numeric)`;
-            this.log(`Data analysis completed: ${analysisType} analysis on ${data.length} data points`, 'success');
-            return { content: [{ type: "text", text: summary }] };
-        }, 'data_analysis');
+        }
+        if (dataTypes.includes('categorical')) {
+            guidance += `**Categorical Analysis Recommended:**\n`;
+            guidance += `• **Frequency Analysis**: Count distributions and percentages\n`;
+            guidance += `• **Chi-square Tests**: Independence and goodness of fit\n`;
+            guidance += `• **Contingency Tables**: Cross-tabulation analysis\n`;
+        }
+        if (dataTypes.includes('date')) {
+            guidance += `**Time Series Analysis Recommended:**\n`;
+            guidance += `• **Trend Analysis**: Identify patterns over time\n`;
+            guidance += `• **Seasonality Testing**: Detect cyclical patterns\n`;
+            guidance += `• **Forecasting Methods**: Project future values\n`;
+        }
+        // Sample size considerations
+        if (dataSize < 30) {
+            guidance += `\n⚠️ **Small Sample Warning**: n=${dataSize} may limit statistical power. Consider:\n`;
+            guidance += `• Non-parametric tests instead of parametric\n`;
+            guidance += `• Bootstrap methods for confidence intervals\n`;
+            guidance += `• Effect size reporting over significance testing\n`;
+        }
+        return guidance + `\n`;
+    }
+    getStatisticalTestGuidance(dataTypes, analysisType, dataSize) {
+        let guidance = `### 🧪 Statistical Test Selection Guide\n`;
+        if (dataTypes.includes('numeric')) {
+            guidance += `**For Numeric Data:**\n`;
+            guidance += `• **One Sample**: t-test (normal) or Wilcoxon signed-rank (non-normal)\n`;
+            guidance += `• **Two Groups**: Independent t-test or Mann-Whitney U test\n`;
+            guidance += `• **Multiple Groups**: ANOVA (normal) or Kruskal-Wallis (non-normal)\n`;
+            guidance += `• **Relationships**: Pearson correlation (normal) or Spearman (non-normal)\n`;
+        }
+        if (dataTypes.includes('categorical')) {
+            guidance += `**For Categorical Data:**\n`;
+            guidance += `• **Independence**: Chi-square test of independence\n`;
+            guidance += `• **Goodness of Fit**: Chi-square goodness of fit test\n`;
+            guidance += `• **Small Frequencies**: Fisher's exact test\n`;
+        }
+        guidance += `\n**Test Assumptions to Check:**\n`;
+        guidance += `• **Normality**: Shapiro-Wilk test, Q-Q plots\n`;
+        guidance += `• **Independence**: Random sampling verification\n`;
+        guidance += `• **Equal Variance**: Levene's test, F-test\n`;
+        guidance += `• **Sample Size**: Power analysis for adequacy\n`;
+        return guidance + `\n`;
+    }
+    getInterpretationGuidance(analysisType) {
+        let guidance = `### 🎯 Results Interpretation Framework\n`;
+        guidance += `**Statistical Significance vs Practical Significance:**\n`;
+        guidance += `• Report both p-values AND effect sizes\n`;
+        guidance += `• Consider clinical/practical meaningfulness\n`;
+        guidance += `• Discuss confidence intervals, not just point estimates\n\n`;
+        guidance += `**Common Interpretation Mistakes to Avoid:**\n`;
+        guidance += `• Don't confuse correlation with causation\n`;
+        guidance += `• Don't over-interpret non-significant results\n`;
+        guidance += `• Don't ignore assumptions violations\n`;
+        guidance += `• Don't cherry-pick significant results\n\n`;
+        guidance += `**Reporting Best Practices:**\n`;
+        guidance += `• Include descriptive statistics for all variables\n`;
+        guidance += `• Report exact p-values (not just p < 0.05)\n`;
+        guidance += `• Include effect sizes with confidence intervals\n`;
+        guidance += `• Discuss limitations and assumptions\n`;
+        return guidance;
     }
     parseDataPoints(data) {
         const numericData = [];
@@ -293,42 +416,6 @@ class ScientificMethodEngine {
             numericData.push(...numbers);
         });
         return numericData;
-    }
-    generateStatisticalAnalysis(rawData, numericData, analysisType, targetVariable, confidenceLevel = 0.95) {
-        const report = {
-            datasetSummary: {
-                sampleSize: rawData.length,
-                dataPoints: rawData.slice(0, 10), // Show first 10 for brevity
-                dataTypes: this.classifyDataTypes(rawData)
-            },
-            descriptiveStats: this.calculateDescriptiveStats(numericData),
-            recommendations: []
-        };
-        // Add analysis based on type
-        switch (analysisType) {
-            case 'descriptive':
-                // Already calculated above
-                break;
-            case 'inferential':
-                report.inferentialStats = this.calculateInferentialStats(numericData, confidenceLevel);
-                report.hypothesisTests = this.performHypothesisTests(numericData);
-                break;
-            case 'correlation':
-                report.correlations = this.calculateCorrelations(numericData);
-                break;
-            case 'regression':
-                report.inferentialStats = this.performRegressionAnalysis(numericData);
-                break;
-            case 'comprehensive':
-            default:
-                report.inferentialStats = this.calculateInferentialStats(numericData, confidenceLevel);
-                report.correlations = this.calculateCorrelations(numericData);
-                report.hypothesisTests = this.performHypothesisTests(numericData);
-                break;
-        }
-        // Generate recommendations
-        report.recommendations = this.generateRecommendations(report, numericData.length);
-        return report;
     }
     classifyDataTypes(data) {
         const types = new Set();
@@ -351,199 +438,6 @@ class ScientificMethodEngine {
         });
         return Array.from(types);
     }
-    calculateDescriptiveStats(data) {
-        if (data.length === 0)
-            return [];
-        const sorted = [...data].sort((a, b) => a - b);
-        const n = data.length;
-        const sum = data.reduce((acc, val) => acc + val, 0);
-        const mean = sum / n;
-        const variance = data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / (n - 1);
-        const stdDev = Math.sqrt(variance);
-        const q1 = this.percentile(sorted, 0.25);
-        const median = this.percentile(sorted, 0.5);
-        const q3 = this.percentile(sorted, 0.75);
-        const iqr = q3 - q1;
-        return [
-            {
-                metric: 'Sample Size (n)',
-                value: n,
-                interpretation: `Dataset contains ${n} numeric observations${n < 30 ? ' (small sample)' : n < 100 ? ' (medium sample)' : ' (large sample)'}`
-            },
-            {
-                metric: 'Mean',
-                value: Math.round(mean * 1000) / 1000,
-                interpretation: `Average value is ${mean.toFixed(3)}`
-            },
-            {
-                metric: 'Standard Deviation',
-                value: Math.round(stdDev * 1000) / 1000,
-                interpretation: `Data spread: ${stdDev < mean * 0.1 ? 'low variability' : stdDev < mean * 0.3 ? 'moderate variability' : 'high variability'}`
-            },
-            {
-                metric: 'Median',
-                value: Math.round(median * 1000) / 1000,
-                interpretation: `Middle value is ${median.toFixed(3)}${Math.abs(mean - median) < stdDev * 0.1 ? ' (symmetric distribution)' : ' (skewed distribution)'}`
-            },
-            {
-                metric: 'Range',
-                value: Math.round((sorted[n - 1] - sorted[0]) * 1000) / 1000,
-                interpretation: `Data spans from ${sorted[0].toFixed(3)} to ${sorted[n - 1].toFixed(3)}`
-            },
-            {
-                metric: 'Interquartile Range (IQR)',
-                value: Math.round(iqr * 1000) / 1000,
-                interpretation: `Middle 50% of data spans ${iqr.toFixed(3)} units`
-            }
-        ];
-    }
-    calculateInferentialStats(data, confidenceLevel) {
-        const n = data.length;
-        const mean = data.reduce((acc, val) => acc + val, 0) / n;
-        const stdDev = Math.sqrt(data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / (n - 1));
-        const stdError = stdDev / Math.sqrt(n);
-        // T-distribution critical value (approximation)
-        const alpha = 1 - confidenceLevel;
-        const tCritical = this.getTCritical(n - 1, alpha / 2);
-        const marginError = tCritical * stdError;
-        const ciLower = mean - marginError;
-        const ciUpper = mean + marginError;
-        return [
-            {
-                metric: 'Standard Error of Mean',
-                value: Math.round(stdError * 1000) / 1000,
-                interpretation: `Precision of sample mean estimate: ±${stdError.toFixed(3)}`,
-                significance: stdError < stdDev * 0.1 ? 'high' : stdError < stdDev * 0.3 ? 'moderate' : 'low'
-            },
-            {
-                metric: `${(confidenceLevel * 100)}% Confidence Interval`,
-                value: Math.round(marginError * 1000) / 1000,
-                interpretation: `Population mean likely between ${ciLower.toFixed(3)} and ${ciUpper.toFixed(3)}`,
-                significance: marginError < stdDev * 0.2 ? 'high' : marginError < stdDev * 0.5 ? 'moderate' : 'low'
-            }
-        ];
-    }
-    calculateCorrelations(data) {
-        if (data.length < 4)
-            return [];
-        // Create pairs for correlation analysis (adjacent values, lag-1 autocorrelation)
-        const pairs = [];
-        for (let i = 0; i < data.length - 1; i++) {
-            pairs.push([data[i], data[i + 1]]);
-        }
-        if (pairs.length < 3)
-            return [];
-        const correlation = this.calculatePearsonCorrelation(pairs);
-        const nPairs = pairs.length;
-        // Test for significance (approximate)
-        const tStat = correlation * Math.sqrt((nPairs - 2) / (1 - correlation * correlation));
-        const significant = Math.abs(tStat) > 2.0; // Rough t-critical for p < 0.05
-        return [
-            {
-                metric: 'Serial Correlation (Lag-1)',
-                value: Math.round(correlation * 1000) / 1000,
-                interpretation: `${Math.abs(correlation) < 0.3 ? 'Weak' : Math.abs(correlation) < 0.7 ? 'Moderate' : 'Strong'} ${correlation > 0 ? 'positive' : 'negative'} correlation between consecutive values${significant ? ' (significant)' : ' (not significant)'}`,
-                significance: Math.abs(correlation) < 0.3 ? 'low' : Math.abs(correlation) < 0.7 ? 'moderate' : 'high'
-            }
-        ];
-    }
-    performHypothesisTests(data) {
-        const n = data.length;
-        const mean = data.reduce((acc, val) => acc + val, 0) / n;
-        const stdDev = Math.sqrt(data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / (n - 1));
-        const tests = [];
-        // One-sample t-test against zero
-        const tStat = mean / (stdDev / Math.sqrt(n));
-        const pValue = this.calculatePValue(Math.abs(tStat), n - 1);
-        tests.push({
-            hypothesis: 'H0: Population mean = 0',
-            testType: 'One-sample t-test',
-            pValue: Math.round(pValue * 1000) / 1000,
-            significant: pValue < 0.05,
-            conclusion: pValue < 0.05 ? 'Reject H0: Mean significantly different from zero' : 'Fail to reject H0: Mean not significantly different from zero'
-        });
-        // Normality test (simplified Shapiro-Wilk approximation)
-        if (n >= 3 && n <= 50) {
-            const normalityP = this.simpleNormalityTest(data);
-            tests.push({
-                hypothesis: 'H0: Data follows normal distribution',
-                testType: 'Normality test (approximate)',
-                pValue: Math.round(normalityP * 1000) / 1000,
-                significant: normalityP < 0.05,
-                conclusion: normalityP < 0.05 ? 'Reject H0: Data not normally distributed' : 'Fail to reject H0: Data appears normally distributed'
-            });
-        }
-        return tests;
-    }
-    performRegressionAnalysis(data) {
-        if (data.length < 4)
-            return [];
-        // Simple linear regression: y = data values, x = index (time trend)
-        const n = data.length;
-        const xValues = Array.from({ length: n }, (_, i) => i + 1);
-        const yValues = data;
-        const xMean = xValues.reduce((a, b) => a + b, 0) / n;
-        const yMean = yValues.reduce((a, b) => a + b, 0) / n;
-        const numerator = xValues.reduce((sum, x, i) => sum + (x - xMean) * (yValues[i] - yMean), 0);
-        const denominator = xValues.reduce((sum, x) => sum + Math.pow(x - xMean, 2), 0);
-        const slope = numerator / denominator;
-        const intercept = yMean - slope * xMean;
-        // Calculate R-squared
-        const yPredicted = xValues.map(x => intercept + slope * x);
-        const ssRes = yValues.reduce((sum, y, i) => sum + Math.pow(y - yPredicted[i], 2), 0);
-        const ssTot = yValues.reduce((sum, y) => sum + Math.pow(y - yMean, 2), 0);
-        const rSquared = 1 - (ssRes / ssTot);
-        return [
-            {
-                metric: 'Trend Slope',
-                value: Math.round(slope * 1000) / 1000,
-                interpretation: `Data shows ${Math.abs(slope) < 0.1 ? 'minimal' : Math.abs(slope) < 1 ? 'moderate' : 'strong'} ${slope > 0 ? 'upward' : 'downward'} trend`,
-                significance: Math.abs(slope) < 0.1 ? 'low' : Math.abs(slope) < 1 ? 'moderate' : 'high'
-            },
-            {
-                metric: 'R-squared',
-                value: Math.round(rSquared * 1000) / 1000,
-                interpretation: `Trend explains ${(rSquared * 100).toFixed(1)}% of variance${rSquared > 0.7 ? ' (strong fit)' : rSquared > 0.3 ? ' (moderate fit)' : ' (weak fit)'}`,
-                significance: rSquared > 0.7 ? 'high' : rSquared > 0.3 ? 'moderate' : 'low'
-            }
-        ];
-    }
-    generateRecommendations(report, dataSize) {
-        const recommendations = [];
-        // Sample size recommendations
-        if (dataSize < 30) {
-            recommendations.push('Consider collecting more data points (n≥30) for more reliable statistical inference');
-        }
-        // Normality recommendations
-        const normalityTest = report.hypothesisTests?.find(test => test.hypothesis.includes('normal'));
-        if (normalityTest && normalityTest.significant) {
-            recommendations.push('Data appears non-normal; consider non-parametric tests or data transformation');
-        }
-        // Correlation recommendations
-        const correlation = report.correlations?.find(corr => corr.metric.includes('Correlation'));
-        if (correlation && Math.abs(correlation.value) > 0.5) {
-            recommendations.push('Strong serial correlation detected; consider time series analysis methods');
-        }
-        // Variance recommendations
-        const stdDev = report.descriptiveStats.find(stat => stat.metric === 'Standard Deviation');
-        const mean = report.descriptiveStats.find(stat => stat.metric === 'Mean');
-        if (stdDev && mean && stdDev.value > Math.abs(mean.value)) {
-            recommendations.push('High variability detected; investigate potential outliers or confounding factors');
-        }
-        // Confidence interval recommendations
-        const ci = report.inferentialStats?.find(stat => stat.metric.includes('Confidence'));
-        if (ci && ci.significance === 'low') {
-            recommendations.push('Wide confidence intervals suggest need for larger sample size or reduced measurement error');
-        }
-        // Hypothesis validation recommendations
-        if (report.hypothesisTests && report.hypothesisTests.length > 0) {
-            const significantTests = report.hypothesisTests.filter(test => test.significant);
-            if (significantTests.length > 0) {
-                recommendations.push('Significant statistical results found; validate with independent dataset or replication study');
-            }
-        }
-        return recommendations;
-    }
     // Helper mathematical functions
     percentile(sortedData, p) {
         const index = p * (sortedData.length - 1);
@@ -554,128 +448,6 @@ class ScientificMethodEngine {
             return sortedData[lower];
         }
         return sortedData[lower] * (1 - weight) + sortedData[upper] * weight;
-    }
-    getTCritical(df, alpha) {
-        // Simplified t-critical values for common cases
-        if (df >= 30)
-            return 1.96; // Normal approximation
-        const tTable = {
-            1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
-            6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
-            15: 2.131, 20: 2.086, 25: 2.060
-        };
-        const closestDf = Object.keys(tTable)
-            .map(Number)
-            .reduce((prev, curr) => Math.abs(curr - df) < Math.abs(prev - df) ? curr : prev);
-        return tTable[closestDf] || 2.0;
-    }
-    calculatePearsonCorrelation(pairs) {
-        const n = pairs.length;
-        const xValues = pairs.map(p => p[0]);
-        const yValues = pairs.map(p => p[1]);
-        const xMean = xValues.reduce((a, b) => a + b, 0) / n;
-        const yMean = yValues.reduce((a, b) => a + b, 0) / n;
-        const numerator = pairs.reduce((sum, [x, y]) => sum + (x - xMean) * (y - yMean), 0);
-        const xVariance = xValues.reduce((sum, x) => sum + Math.pow(x - xMean, 2), 0);
-        const yVariance = yValues.reduce((sum, y) => sum + Math.pow(y - yMean, 2), 0);
-        return numerator / Math.sqrt(xVariance * yVariance);
-    }
-    calculatePValue(tStat, df) {
-        // Simplified p-value calculation (approximation)
-        if (Math.abs(tStat) > 3)
-            return 0.001;
-        if (Math.abs(tStat) > 2.5)
-            return 0.01;
-        if (Math.abs(tStat) > 2)
-            return 0.05;
-        if (Math.abs(tStat) > 1.5)
-            return 0.1;
-        return 0.2;
-    }
-    simpleNormalityTest(data) {
-        // Simplified normality test based on skewness and kurtosis
-        const n = data.length;
-        const mean = data.reduce((a, b) => a + b, 0) / n;
-        const variance = data.reduce((sum, x) => sum + Math.pow(x - mean, 2), 0) / n;
-        const stdDev = Math.sqrt(variance);
-        const skewness = data.reduce((sum, x) => sum + Math.pow((x - mean) / stdDev, 3), 0) / n;
-        const kurtosis = data.reduce((sum, x) => sum + Math.pow((x - mean) / stdDev, 4), 0) / n - 3;
-        // Rough approximation: reject normality if |skewness| > 1 or |kurtosis| > 1
-        const normalityScore = Math.abs(skewness) + Math.abs(kurtosis);
-        if (normalityScore > 2)
-            return 0.01;
-        if (normalityScore > 1)
-            return 0.05;
-        if (normalityScore > 0.5)
-            return 0.1;
-        return 0.5;
-    }
-    formatDataAnalysisReport(report, analysisType) {
-        let summary = `## 📊 Statistical Data Analysis Report\n\n`;
-        summary += `**Analysis Type:** ${analysisType.charAt(0).toUpperCase() + analysisType.slice(1)}\n`;
-        summary += `**Dataset:** ${report.datasetSummary.sampleSize} observations\n`;
-        summary += `**Data Types:** ${report.datasetSummary.dataTypes.join(', ')}\n\n`;
-        // Dataset Summary
-        summary += `### 📋 Dataset Summary\n`;
-        summary += `• **Sample Size:** ${report.datasetSummary.sampleSize}\n`;
-        summary += `• **Data Types Detected:** ${report.datasetSummary.dataTypes.join(', ')}\n`;
-        if (report.datasetSummary.dataPoints.length > 0) {
-            summary += `• **Sample Data:** ${report.datasetSummary.dataPoints.slice(0, 5).join(', ')}${report.datasetSummary.sampleSize > 5 ? '...' : ''}\n\n`;
-        }
-        // Descriptive Statistics
-        summary += `### 📈 Descriptive Statistics\n`;
-        report.descriptiveStats.forEach(stat => {
-            const significanceEmoji = stat.significance === 'high' ? '🟢' : stat.significance === 'moderate' ? '🟡' : '🔴';
-            summary += `• **${stat.metric}:** ${stat.value} ${stat.significance ? significanceEmoji : ''}\n`;
-            summary += `  ${stat.interpretation}\n\n`;
-        });
-        // Inferential Statistics
-        if (report.inferentialStats && report.inferentialStats.length > 0) {
-            summary += `### 🔬 Inferential Statistics\n`;
-            report.inferentialStats.forEach(stat => {
-                const significanceEmoji = stat.significance === 'high' ? '🟢' : stat.significance === 'moderate' ? '🟡' : '🔴';
-                summary += `• **${stat.metric}:** ${stat.value} ${stat.significance ? significanceEmoji : ''}\n`;
-                summary += `  ${stat.interpretation}\n\n`;
-            });
-        }
-        // Correlations
-        if (report.correlations && report.correlations.length > 0) {
-            summary += `### 🔗 Correlation Analysis\n`;
-            report.correlations.forEach(corr => {
-                const significanceEmoji = corr.significance === 'high' ? '🟢' : corr.significance === 'moderate' ? '🟡' : '🔴';
-                summary += `• **${corr.metric}:** ${corr.value} ${corr.significance ? significanceEmoji : ''}\n`;
-                summary += `  ${corr.interpretation}\n\n`;
-            });
-        }
-        // Hypothesis Tests
-        if (report.hypothesisTests && report.hypothesisTests.length > 0) {
-            summary += `### 🧪 Hypothesis Testing\n`;
-            report.hypothesisTests.forEach(test => {
-                const resultEmoji = test.significant ? '✅' : '❌';
-                summary += `• **${test.testType}** ${resultEmoji}\n`;
-                summary += `  **Hypothesis:** ${test.hypothesis}\n`;
-                summary += `  **p-value:** ${test.pValue}\n`;
-                summary += `  **Result:** ${test.conclusion}\n\n`;
-            });
-        }
-        // Recommendations
-        if (report.recommendations.length > 0) {
-            summary += `### 💡 Statistical Recommendations\n`;
-            report.recommendations.forEach(rec => {
-                summary += `• ${rec}\n`;
-            });
-            summary += '\n';
-        }
-        // Analysis Summary
-        summary += `### 📋 Analysis Summary\n`;
-        const totalTests = (report.hypothesisTests || []).length;
-        const significantTests = (report.hypothesisTests || []).filter(test => test.significant).length;
-        const avgSignificance = report.descriptiveStats.filter(stat => stat.significance).length;
-        summary += `• **Statistical Tests:** ${totalTests} performed, ${significantTests} significant\n`;
-        summary += `• **Data Quality:** ${avgSignificance > 3 ? 'High' : avgSignificance > 1 ? 'Moderate' : 'Limited'} statistical power\n`;
-        summary += `• **Recommendation:** ${report.recommendations.length > 2 ? 'Multiple improvements suggested' : report.recommendations.length > 0 ? 'Some improvements recommended' : 'Data appears adequate for analysis'}\n\n`;
-        summary += `💡 **Next Steps:** Use these results to validate hypotheses and inform research conclusions.`;
-        return summary;
     }
     peer_review_guidance(input) {
         return this.safeExecute(() => {
@@ -810,23 +582,139 @@ class ScientificMethodEngine {
     }
     get_state() {
         return this.safeExecute(() => {
-            const stateInfo = {
-                currentStage: this.state.currentStage,
-                problemStatement: this.state.problemStatement,
-                literatureCount: this.state.literature.length,
-                hypothesesCount: this.state.hypotheses.length,
-                experimentsCount: this.state.experiments.length,
-                dataPointsCount: this.state.data.length,
-                hasAnalysis: !!this.state.analysis,
-                conclusionsCount: this.state.conclusions.length,
-                averageEvidenceScore: this.state.hypotheses.length > 0
-                    ? (this.state.hypotheses.reduce((sum, h) => sum + h.evidenceScore, 0) / this.state.hypotheses.length).toFixed(2)
-                    : "N/A"
-            };
+            let output = `## 📊 Research State Overview\n\n`;
+            // Current Stage and Progress
             const nextSteps = STAGE_TRANSITIONS[this.state.currentStage];
-            const stageDescription = `\n\nCurrent Stage: ${this.state.currentStage}\nNext Available Stages: ${nextSteps.join(', ') || 'None (research complete)'}\n\nDetailed State:\n${JSON.stringify(stateInfo, null, 2)}`;
-            return { content: [{ type: "text", text: stageDescription }] };
+            output += `**Current Stage:** ${this.state.currentStage}\n`;
+            output += `**Next Available Stages:** ${nextSteps.join(', ') || 'None (research complete)'}\n\n`;
+            // Problem Statement
+            output += `### 🎯 Research Focus\n`;
+            output += `**Problem Statement:** ${this.state.problemStatement || 'Not defined yet'}\n\n`;
+            // Literature Review Status
+            output += `### 📚 Literature Review\n`;
+            output += `**Sources Collected:** ${this.state.literature.length}\n`;
+            if (this.state.literature.length > 0) {
+                output += `**Recent Entries:** ${this.state.literature.slice(-2).join(', ')}\n`;
+            }
+            output += `\n`;
+            // Detailed Hypotheses Section
+            output += `### 🧠 Hypotheses (${this.state.hypotheses.length} total)\n`;
+            if (this.state.hypotheses.length === 0) {
+                output += `*No hypotheses generated yet. Use \`hypothesis_formation\` or \`hypothesis_generation\` tools.*\n\n`;
+            }
+            else {
+                const avgEvidence = this.state.hypotheses.reduce((sum, h) => sum + h.evidenceScore, 0) / this.state.hypotheses.length;
+                output += `**Average Evidence Score:** ${avgEvidence.toFixed(2)}/1.0\n\n`;
+                this.state.hypotheses.forEach((hyp, index) => {
+                    const scoreEmoji = hyp.evidenceScore >= 0.7 ? '🟢' : hyp.evidenceScore >= 0.4 ? '🟡' : '🔴';
+                    output += `**${index + 1}. ID: \`${hyp.id}\`** ${scoreEmoji}\n`;
+                    output += `${hyp.description}\n`;
+                    output += `*Evidence Score: ${hyp.evidenceScore}/1.0*\n\n`;
+                });
+                output += `💡 Use \`score_hypothesis\` tool with these IDs to update evidence scores.\n\n`;
+            }
+            // Experiments
+            output += `### ⚗️ Experimental Design\n`;
+            output += `**Experiments Designed:** ${this.state.experiments.length}\n`;
+            if (this.state.experiments.length > 0) {
+                output += `**Latest:** ${this.state.experiments[this.state.experiments.length - 1]}\n`;
+            }
+            output += `\n`;
+            // Data Collection
+            output += `### 📊 Data Collection\n`;
+            output += `**Data Points:** ${this.state.data.length}\n`;
+            if (this.state.data.length > 0) {
+                output += `**Sample:** ${this.state.data.slice(0, 3).join(', ')}${this.state.data.length > 3 ? '...' : ''}\n`;
+            }
+            output += `\n`;
+            // Analysis
+            output += `### 🔬 Analysis\n`;
+            output += `**Status:** ${this.state.analysis ? '✅ Completed' : '❌ Not completed'}\n`;
+            if (this.state.analysis) {
+                output += `**Summary:** ${this.state.analysis}\n`;
+            }
+            output += `\n`;
+            // Conclusions
+            output += `### ✅ Conclusions\n`;
+            output += `**Conclusions Drawn:** ${this.state.conclusions.length}\n`;
+            if (this.state.conclusions.length > 0) {
+                output += `**Latest:** ${this.state.conclusions[this.state.conclusions.length - 1]}\n`;
+            }
+            output += `\n`;
+            // Research Progress Assessment
+            const progress = this.calculateResearchProgress();
+            output += `### 📈 Research Progress\n`;
+            output += `**Overall Completion:** ${progress}%\n`;
+            output += `**Research Quality:** ${this.assessResearchQuality()}\n\n`;
+            // Next Action Suggestions
+            output += `### 🎯 Suggested Next Actions\n`;
+            output += this.getSuggestedActions();
+            return { content: [{ type: "text", text: output }] };
         }, 'get_state');
+    }
+    calculateResearchProgress() {
+        let progress = 0;
+        if (this.state.problemStatement)
+            progress += 15;
+        if (this.state.literature.length > 0)
+            progress += 15;
+        if (this.state.hypotheses.length > 0)
+            progress += 20;
+        if (this.state.experiments.length > 0)
+            progress += 15;
+        if (this.state.data.length > 0)
+            progress += 15;
+        if (this.state.analysis)
+            progress += 10;
+        if (this.state.conclusions.length > 0)
+            progress += 10;
+        return progress;
+    }
+    assessResearchQuality() {
+        const avgEvidence = this.state.hypotheses.length > 0
+            ? this.state.hypotheses.reduce((sum, h) => sum + h.evidenceScore, 0) / this.state.hypotheses.length
+            : 0;
+        if (avgEvidence >= 0.7)
+            return "High (strong evidence base)";
+        if (avgEvidence >= 0.4)
+            return "Moderate (building evidence)";
+        if (this.state.hypotheses.length > 0)
+            return "Developing (needs more evidence)";
+        return "Initial (needs hypotheses)";
+    }
+    getSuggestedActions() {
+        let suggestions = "";
+        if (!this.state.problemStatement) {
+            suggestions += "• Define research problem using `observation` tool\n";
+        }
+        if (this.state.literature.length === 0) {
+            suggestions += "• Conduct literature search using `literature_search` tool\n";
+        }
+        if (this.state.hypotheses.length === 0) {
+            suggestions += "• Generate hypotheses using `hypothesis_generation` tool\n";
+        }
+        if (this.state.hypotheses.length > 0) {
+            const unscored = this.state.hypotheses.filter(h => h.evidenceScore === 0);
+            if (unscored.length > 0) {
+                suggestions += `• Score evidence for ${unscored.length} hypotheses using \`score_hypothesis\` tool\n`;
+            }
+        }
+        if (this.state.experiments.length === 0 && this.state.hypotheses.length > 0) {
+            suggestions += "• Design experiments using `experiment_design` tool\n";
+        }
+        if (this.state.data.length === 0 && this.state.experiments.length > 0) {
+            suggestions += "• Collect data using `data_collection` tool\n";
+        }
+        if (!this.state.analysis && this.state.data.length > 0) {
+            suggestions += "• Get analysis guidance using `data_analysis_guidance` tool\n";
+        }
+        if (this.state.conclusions.length === 0 && this.state.analysis) {
+            suggestions += "• Draw conclusions using `conclusion` tool\n";
+        }
+        if (this.state.hypotheses.length > 0) {
+            suggestions += "• Check for breakthroughs using `check_for_breakthrough` tool\n";
+        }
+        return suggestions || "• Continue with current research stage\n";
     }
     score_hypothesis(input) {
         return this.safeExecute(() => {
@@ -867,6 +755,519 @@ class ScientificMethodEngine {
             this.log(`Current average evidence score: ${averageEvidenceScore.toFixed(2)}`);
             return { content: [{ type: "text", text: `Current average evidence score across all hypotheses: ${averageEvidenceScore.toFixed(2)}.${breakthroughStatus}` }] };
         }, 'check_for_breakthrough');
+    }
+    research_methodology_guidance(input) {
+        return this.safeExecute(() => {
+            const params = (input || {});
+            const { researchQuestion, field, methodologyType = 'general' } = params;
+            let guidance = `## 🔬 Research Methodology Guidance\n\n`;
+            if (researchQuestion) {
+                guidance += `**Research Question:** ${researchQuestion}\n`;
+            }
+            if (field) {
+                guidance += `**Research Field:** ${field}\n`;
+            }
+            guidance += `**Methodology Focus:** ${methodologyType}\n\n`;
+            guidance += `### 🎯 Methodology Selection Framework\n\n`;
+            // Provide guidance based on methodology type
+            switch (methodologyType) {
+                case 'quantitative':
+                    guidance += this.getQuantitativeMethodologyGuidance();
+                    break;
+                case 'qualitative':
+                    guidance += this.getQualitativeMethodologyGuidance();
+                    break;
+                case 'mixed-methods':
+                    guidance += this.getMixedMethodsGuidance();
+                    break;
+                case 'theoretical':
+                    guidance += this.getTheoreticalMethodologyGuidance();
+                    break;
+                case 'computational':
+                    guidance += this.getComputationalMethodologyGuidance();
+                    break;
+                case 'meta-analysis':
+                    guidance += this.getMetaAnalysisGuidance();
+                    break;
+                default:
+                    guidance += this.getGeneralMethodologyGuidance(researchQuestion);
+            }
+            guidance += `\n### 🎯 Next Steps for Your Research\n`;
+            guidance += `1. **Refine Your Approach**: Choose the most appropriate methodology for your research question\n`;
+            guidance += `2. **Design Your Study**: Use the framework above to structure your research design\n`;
+            guidance += `3. **Plan Data Collection**: Select appropriate data collection methods\n`;
+            guidance += `4. **Consider Ethics**: Ensure your methodology meets ethical standards\n`;
+            guidance += `5. **Validate Approach**: Consider pilot studies or expert consultation\n\n`;
+            guidance += `💡 **Remember**: The best methodology is the one that best answers your specific research question with available resources.`;
+            this.log(`Research methodology guidance provided: ${methodologyType} approach`, 'info');
+            return { content: [{ type: "text", text: guidance }] };
+        }, 'research_methodology_guidance');
+    }
+    getQuantitativeMethodologyGuidance() {
+        return `**Quantitative Research Approach**\n\n` +
+            `**Best For:**\n` +
+            `• Testing hypotheses and theories\n` +
+            `• Measuring relationships between variables\n` +
+            `• Generalizing findings to larger populations\n` +
+            `• Objective measurement and statistical analysis\n\n` +
+            `**Common Designs:**\n` +
+            `• **Experimental**: Controlled manipulation of variables (RCTs, quasi-experiments)\n` +
+            `• **Correlational**: Examining relationships without manipulation\n` +
+            `• **Survey Research**: Large-scale data collection via questionnaires\n` +
+            `• **Longitudinal**: Tracking changes over time\n` +
+            `• **Cross-sectional**: Snapshot data at one time point\n\n` +
+            `**Data Collection Methods:**\n` +
+            `• Structured surveys and questionnaires\n` +
+            `• Standardized tests and measurements\n` +
+            `• Existing datasets and databases\n` +
+            `• Laboratory experiments\n` +
+            `• Physiological measurements\n\n` +
+            `**Analysis Approaches:**\n` +
+            `• Descriptive statistics (means, frequencies, distributions)\n` +
+            `• Inferential statistics (t-tests, ANOVA, regression)\n` +
+            `• Multivariate analysis (factor analysis, SEM)\n` +
+            `• Time series analysis for longitudinal data\n`;
+    }
+    getQualitativeMethodologyGuidance() {
+        return `**Qualitative Research Approach**\n\n` +
+            `**Best For:**\n` +
+            `• Exploring complex phenomena in depth\n` +
+            `• Understanding meaning and context\n` +
+            `• Generating new theories and concepts\n` +
+            `• Studying processes and experiences\n\n` +
+            `**Common Designs:**\n` +
+            `• **Ethnography**: Immersive study of cultures and communities\n` +
+            `• **Phenomenology**: Understanding lived experiences\n` +
+            `• **Grounded Theory**: Developing theories from data\n` +
+            `• **Case Study**: In-depth analysis of specific cases\n` +
+            `• **Narrative Research**: Exploring stories and life histories\n\n` +
+            `**Data Collection Methods:**\n` +
+            `• In-depth interviews (semi-structured, unstructured)\n` +
+            `• Focus groups and group discussions\n` +
+            `• Participant observation\n` +
+            `• Document analysis (texts, media, artifacts)\n` +
+            `• Field notes and reflexive journaling\n\n` +
+            `**Analysis Approaches:**\n` +
+            `• Thematic analysis (identifying patterns and themes)\n` +
+            `• Content analysis (systematic categorization)\n` +
+            `• Discourse analysis (language and meaning)\n` +
+            `• Constant comparative method\n` +
+            `• Interpretative phenomenological analysis (IPA)\n`;
+    }
+    getMixedMethodsGuidance() {
+        return `**Mixed-Methods Research Approach**\n\n` +
+            `**Best For:**\n` +
+            `• Complex research questions requiring multiple perspectives\n` +
+            `• Validation and triangulation of findings\n` +
+            `• Explaining quantitative results with qualitative insights\n` +
+            `• Comprehensive understanding of phenomena\n\n` +
+            `**Common Designs:**\n` +
+            `• **Sequential Explanatory**: Quantitative → Qualitative (explain results)\n` +
+            `• **Sequential Exploratory**: Qualitative → Quantitative (test emerging theories)\n` +
+            `• **Concurrent Triangulation**: Simultaneous qual/quant data collection\n` +
+            `• **Embedded**: One method supports the other within same study\n\n` +
+            `**Integration Strategies:**\n` +
+            `• Data triangulation (comparing different data sources)\n` +
+            `• Method triangulation (using multiple methods)\n` +
+            `• Joint displays and mixed-methods matrices\n` +
+            `• Meta-inferences drawing from both data types\n\n` +
+            `**Considerations:**\n` +
+            `• Requires expertise in both quantitative and qualitative methods\n` +
+            `• More time and resource intensive\n` +
+            `• Clear integration plan needed from start\n` +
+            `• Consider paradigmatic compatibility\n`;
+    }
+    getTheoreticalMethodologyGuidance() {
+        return `**Theoretical Research Approach**\n\n` +
+            `**Best For:**\n` +
+            `• Developing new theoretical frameworks\n` +
+            `• Mathematical modeling and proofs\n` +
+            `• Conceptual analysis and synthesis\n` +
+            `• Philosophy of science questions\n\n` +
+            `**Common Approaches:**\n` +
+            `• **Mathematical Modeling**: Formal mathematical representations\n` +
+            `• **Conceptual Analysis**: Logical examination of concepts\n` +
+            `• **Literature Synthesis**: Integrating existing knowledge\n` +
+            `• **Thought Experiments**: Hypothetical scenarios for testing ideas\n` +
+            `• **Formal Logic**: Proof-based reasoning systems\n\n` +
+            `**Methods:**\n` +
+            `• Systematic literature reviews and meta-synthesis\n` +
+            `• Logical argumentation and proof construction\n` +
+            `• Model development and validation\n` +
+            `• Conceptual mapping and framework building\n` +
+            `• Philosophical analysis and critique\n\n` +
+            `**Validation Approaches:**\n` +
+            `• Peer review and expert evaluation\n` +
+            `• Logical consistency checking\n` +
+            `• Empirical testing of predictions\n` +
+            `• Comparison with existing theories\n` +
+            `• Mathematical verification\n`;
+    }
+    getComputationalMethodologyGuidance() {
+        return `**Computational Research Approach**\n\n` +
+            `**Best For:**\n` +
+            `• Complex system modeling and simulation\n` +
+            `• Large-scale data analysis\n` +
+            `• Algorithm development and testing\n` +
+            `• Predictive modeling and forecasting\n\n` +
+            `**Common Methods:**\n` +
+            `• **Agent-Based Modeling**: Simulating individual actors\n` +
+            `• **Machine Learning**: Pattern recognition and prediction\n` +
+            `• **Network Analysis**: Studying relationships and connections\n` +
+            `• **Monte Carlo Methods**: Statistical simulation techniques\n` +
+            `• **Optimization Algorithms**: Finding optimal solutions\n\n` +
+            `**Implementation Considerations:**\n` +
+            `• Software selection and programming languages\n` +
+            `• Computational resource requirements\n` +
+            `• Validation and verification procedures\n` +
+            `• Reproducibility and code sharing\n` +
+            `• Parameter sensitivity analysis\n\n` +
+            `**Validation Approaches:**\n` +
+            `• Cross-validation and holdout testing\n` +
+            `• Comparison with empirical data\n` +
+            `• Sensitivity and robustness testing\n` +
+            `• Peer code review and replication\n` +
+            `• Benchmark comparisons\n`;
+    }
+    getMetaAnalysisGuidance() {
+        return `**Meta-Analysis Research Approach**\n\n` +
+            `**Best For:**\n` +
+            `• Synthesizing findings across multiple studies\n` +
+            `• Quantifying effect sizes and consistency\n` +
+            `• Identifying research gaps and trends\n` +
+            `• Evidence-based practice recommendations\n\n` +
+            `**Types:**\n` +
+            `• **Quantitative Meta-Analysis**: Statistical aggregation of effect sizes\n` +
+            `• **Qualitative Meta-Synthesis**: Thematic synthesis across studies\n` +
+            `• **Mixed-Methods Meta-Analysis**: Combining quan and qual findings\n` +
+            `• **Network Meta-Analysis**: Comparing multiple interventions\n\n` +
+            `**Process Steps:**\n` +
+            `• Define research question and inclusion criteria\n` +
+            `• Systematic literature search and screening\n` +
+            `• Data extraction and quality assessment\n` +
+            `• Statistical analysis and heterogeneity testing\n` +
+            `• Publication bias assessment\n\n` +
+            `**Quality Considerations:**\n` +
+            `• Follow PRISMA guidelines for reporting\n` +
+            `• Assess study quality and risk of bias\n` +
+            `• Test for publication bias (funnel plots, tests)\n` +
+            `• Explore sources of heterogeneity\n` +
+            `• Conduct sensitivity analyses\n`;
+    }
+    getGeneralMethodologyGuidance(researchQuestion) {
+        let guidance = `**General Methodology Selection Guide**\n\n`;
+        guidance += `**Choosing Your Research Approach:**\n\n`;
+        guidance += `**Ask Yourself:**\n`;
+        guidance += `• What is the nature of your research question?\n`;
+        guidance += `• Are you testing a theory or developing new understanding?\n`;
+        guidance += `• Do you need numerical data or rich descriptions?\n`;
+        guidance += `• What resources and expertise do you have?\n`;
+        guidance += `• What ethical considerations are involved?\n\n`;
+        guidance += `**Decision Framework:**\n`;
+        guidance += `• **"What?" questions** → Descriptive or exploratory studies\n`;
+        guidance += `• **"How many?" or "How much?"** → Quantitative approaches\n`;
+        guidance += `• **"How?" or "Why?"** → Qualitative or mixed methods\n`;
+        guidance += `• **"Does X cause Y?"** → Experimental designs\n`;
+        guidance += `• **"What is the relationship?"** → Correlational studies\n\n`;
+        if (researchQuestion) {
+            guidance += `**Analysis of Your Question:**\n`;
+            guidance += `"${researchQuestion}"\n\n`;
+            guidance += this.analyzeResearchQuestion(researchQuestion);
+        }
+        guidance += `**Universal Considerations:**\n`;
+        guidance += `• **Feasibility**: Time, resources, access to participants\n`;
+        guidance += `• **Ethics**: IRB approval, informed consent, privacy\n`;
+        guidance += `• **Validity**: Internal and external validity threats\n`;
+        guidance += `• **Reliability**: Consistency and reproducibility\n`;
+        guidance += `• **Generalizability**: Who can your findings apply to?\n\n`;
+        return guidance;
+    }
+    analyzeResearchQuestion(question) {
+        const q = question.toLowerCase();
+        let analysis = `**Suggested Approach Based on Your Question:**\n`;
+        if (q.includes('how many') || q.includes('how much') || q.includes('what percentage')) {
+            analysis += `• **Quantitative approach** - Your question seeks numerical answers\n`;
+            analysis += `• Consider surveys, existing datasets, or measurement studies\n`;
+        }
+        else if (q.includes('why') || q.includes('how do') || q.includes('what is the experience')) {
+            analysis += `• **Qualitative approach** - Your question seeks understanding and meaning\n`;
+            analysis += `• Consider interviews, focus groups, or ethnographic methods\n`;
+        }
+        else if (q.includes('does') || q.includes('causes') || q.includes('effect') || q.includes('impact')) {
+            analysis += `• **Experimental design** - Your question tests causal relationships\n`;
+            analysis += `• Consider RCTs, quasi-experiments, or natural experiments\n`;
+        }
+        else if (q.includes('relationship') || q.includes('associated') || q.includes('related')) {
+            analysis += `• **Correlational study** - Your question examines associations\n`;
+            analysis += `• Consider survey research or secondary data analysis\n`;
+        }
+        else if (q.includes('what happens') || q.includes('trends') || q.includes('changes over time')) {
+            analysis += `• **Longitudinal design** - Your question involves temporal patterns\n`;
+            analysis += `• Consider panel studies or time series analysis\n`;
+        }
+        else {
+            analysis += `• **Mixed approach might be best** - Your question is complex\n`;
+            analysis += `• Consider starting with qualitative exploration, then quantitative validation\n`;
+        }
+        return analysis + `\n`;
+    }
+    meta_research_guidance(input) {
+        return this.safeExecute(() => {
+            const params = (input || {});
+            const { focusArea = 'comprehensive', researchStage, institution } = params;
+            let guidance = `## 🔬 Meta-Research Guidance: Best Practices for Scientific Integrity\n\n`;
+            if (researchStage) {
+                guidance += `**Research Stage:** ${researchStage}\n`;
+            }
+            if (institution) {
+                guidance += `**Institution Context:** ${institution}\n`;
+            }
+            guidance += `**Focus Area:** ${focusArea}\n\n`;
+            guidance += `### 🎯 Core Principles of Research Integrity\n\n`;
+            guidance += `**The Foundation:**\n`;
+            guidance += `• **Honesty** - Truthful reporting of data, methods, and results\n`;
+            guidance += `• **Transparency** - Open sharing of methods, data, and limitations\n`;
+            guidance += `• **Accountability** - Taking responsibility for research conduct\n`;
+            guidance += `• **Fairness** - Unbiased treatment of data and participants\n`;
+            guidance += `• **Respect** - For participants, colleagues, and scientific community\n\n`;
+            // Provide specific guidance based on focus area
+            switch (focusArea) {
+                case 'ethics':
+                    guidance += this.getResearchEthicsGuidance();
+                    break;
+                case 'reproducibility':
+                    guidance += this.getReproducibilityGuidance();
+                    break;
+                case 'bias':
+                    guidance += this.getBiasMitigationGuidance();
+                    break;
+                case 'open-science':
+                    guidance += this.getOpenScienceGuidance();
+                    break;
+                case 'data-management':
+                    guidance += this.getDataManagementGuidance();
+                    break;
+                case 'publication-ethics':
+                    guidance += this.getPublicationEthicsGuidance();
+                    break;
+                default:
+                    guidance += this.getComprehensiveMetaResearchGuidance();
+            }
+            guidance += `\n### 🎯 Implementation Checklist\n`;
+            guidance += `**Before Starting Research:**\n`;
+            guidance += `• [ ] Obtain necessary ethical approvals (IRB/Ethics Committee)\n`;
+            guidance += `• [ ] Register study protocol (if applicable)\n`;
+            guidance += `• [ ] Plan data management and sharing strategy\n`;
+            guidance += `• [ ] Identify potential conflicts of interest\n`;
+            guidance += `• [ ] Establish collaboration agreements\n\n`;
+            guidance += `**During Research:**\n`;
+            guidance += `• [ ] Maintain detailed research logs and documentation\n`;
+            guidance += `• [ ] Follow pre-registered protocols without unauthorized deviations\n`;
+            guidance += `• [ ] Implement bias prevention measures\n`;
+            guidance += `• [ ] Ensure participant safety and confidentiality\n`;
+            guidance += `• [ ] Document any protocol modifications with rationale\n\n`;
+            guidance += `**After Research:**\n`;
+            guidance += `• [ ] Report all results, including negative findings\n`;
+            guidance += `• [ ] Share data and materials as promised\n`;
+            guidance += `• [ ] Acknowledge all contributors appropriately\n`;
+            guidance += `• [ ] Comply with publication and funding requirements\n`;
+            guidance += `• [ ] Consider broader societal implications\n\n`;
+            guidance += `💡 **Remember**: Good meta-research practices protect both your research integrity and advance scientific knowledge for society.`;
+            this.log(`Meta-research guidance provided: ${focusArea} focus`, 'info');
+            return { content: [{ type: "text", text: guidance }] };
+        }, 'meta_research_guidance');
+    }
+    getResearchEthicsGuidance() {
+        return `### 🛡️ Research Ethics Framework\n\n` +
+            `**Human Subjects Research:**\n` +
+            `• **Informed Consent**: Clear, voluntary, and ongoing consent processes\n` +
+            `• **Risk-Benefit Analysis**: Minimize risks, maximize societal benefits\n` +
+            `• **Privacy Protection**: Safeguard participant data and confidentiality\n` +
+            `• **Vulnerable Populations**: Extra protections for children, minorities, etc.\n` +
+            `• **Cultural Sensitivity**: Respect for diverse backgrounds and values\n\n` +
+            `**Animal Research Ethics:**\n` +
+            `• **3Rs Principle**: Replace, Reduce, Refine animal use\n` +
+            `• **IACUC Approval**: Institutional Animal Care and Use Committee oversight\n` +
+            `• **Minimizing Suffering**: Proper anesthesia, analgesia, and euthanasia\n` +
+            `• **Housing Standards**: Appropriate care and environmental enrichment\n\n` +
+            `**Environmental Ethics:**\n` +
+            `• **Ecological Impact**: Minimize environmental harm from research\n` +
+            `• **Sustainability**: Use environmentally responsible methods\n` +
+            `• **Waste Management**: Proper disposal of research materials\n` +
+            `• **Conservation**: Protect endangered species and ecosystems\n\n` +
+            `**Professional Ethics:**\n` +
+            `• **Conflict of Interest**: Declare and manage financial/personal conflicts\n` +
+            `• **Intellectual Property**: Respect copyrights and patent rights\n` +
+            `• **Collaboration Ethics**: Fair attribution and data sharing\n` +
+            `• **Mentorship**: Responsible training of students and junior researchers\n`;
+    }
+    getReproducibilityGuidance() {
+        return `### 🔄 Reproducibility and Replicability Framework\n\n` +
+            `**Study Design for Reproducibility:**\n` +
+            `• **Pre-registration**: Register hypotheses and methods before data collection\n` +
+            `• **Detailed Protocols**: Provide step-by-step reproducible methods\n` +
+            `• **Power Analysis**: Ensure adequate sample sizes for reliable results\n` +
+            `• **Randomization**: Proper randomization and blinding procedures\n` +
+            `• **Control Groups**: Appropriate controls and comparison conditions\n\n` +
+            `**Data and Code Management:**\n` +
+            `• **Version Control**: Track changes to data, code, and protocols\n` +
+            `• **Documentation**: Clear README files and code comments\n` +
+            `• **Data Provenance**: Record data sources and processing steps\n` +
+            `• **Computational Environment**: Document software versions and dependencies\n` +
+            `• **Testing**: Validate code with test cases and peer review\n\n` +
+            `**Statistical Practices:**\n` +
+            `• **Analysis Plans**: Pre-specify statistical analysis approaches\n` +
+            `• **Multiple Testing**: Correct for multiple comparisons appropriately\n` +
+            `• **Effect Sizes**: Report effect sizes along with p-values\n` +
+            `• **Confidence Intervals**: Provide uncertainty estimates\n` +
+            `• **Robustness Checks**: Test sensitivity to analytical choices\n\n` +
+            `**Reporting Standards:**\n` +
+            `• **CONSORT/STROBE**: Follow discipline-specific reporting guidelines\n` +
+            `• **Complete Methods**: Sufficient detail for independent replication\n` +
+            `• **All Results**: Report negative and null findings\n` +
+            `• **Limitations**: Acknowledge study limitations honestly\n` +
+            `• **Data Availability**: Make data accessible with clear licenses\n`;
+    }
+    getBiasMitigationGuidance() {
+        return `### ⚖️ Bias Prevention and Mitigation Strategies\n\n` +
+            `**Selection Bias Prevention:**\n` +
+            `• **Random Sampling**: Use probability-based sampling methods\n` +
+            `• **Inclusion Criteria**: Define clear, objective inclusion/exclusion criteria\n` +
+            `• **Recruitment Strategies**: Avoid systematic exclusion of groups\n` +
+            `• **Response Rates**: Monitor and report participation rates\n` +
+            `• **Representative Samples**: Ensure samples reflect target populations\n\n` +
+            `**Information Bias Mitigation:**\n` +
+            `• **Blinding**: Blind researchers and participants when possible\n` +
+            `• **Standardized Procedures**: Use consistent data collection protocols\n` +
+            `• **Validated Instruments**: Use psychometrically sound measures\n` +
+            `• **Multiple Sources**: Triangulate data from different sources\n` +
+            `• **Inter-rater Reliability**: Train observers and assess agreement\n\n` +
+            `**Confounding Control:**\n` +
+            `• **Randomization**: Random assignment to control confounders\n` +
+            `• **Matching**: Match participants on key confounding variables\n` +
+            `• **Statistical Control**: Include confounders in analytical models\n` +
+            `• **Stratification**: Analyze within homogeneous subgroups\n` +
+            `• **Sensitivity Analysis**: Test robustness to unmeasured confounders\n\n` +
+            `**Cognitive Bias Awareness:**\n` +
+            `• **Confirmation Bias**: Actively seek disconfirming evidence\n` +
+            `• **Anchoring Bias**: Consider multiple initial hypotheses\n` +
+            `• **Availability Bias**: Systematically search for relevant literature\n` +
+            `• **Hindsight Bias**: Document predictions before outcome knowledge\n` +
+            `• **Publication Bias**: Register studies regardless of expected results\n\n` +
+            `**Algorithmic Bias (AI/ML Research):**\n` +
+            `• **Training Data**: Ensure representative and balanced datasets\n` +
+            `• **Feature Selection**: Avoid discriminatory variables\n` +
+            `• **Fairness Metrics**: Evaluate algorithmic fairness across groups\n` +
+            `• **Bias Testing**: Test for disparate impact and treatment\n` +
+            `• **Interpretability**: Make algorithmic decisions transparent\n`;
+    }
+    getOpenScienceGuidance() {
+        return `### 🌐 Open Science Practices\n\n` +
+            `**Open Access Publishing:**\n` +
+            `• **Preprints**: Share early versions for community feedback\n` +
+            `• **Open Access Journals**: Publish in accessible venues when possible\n` +
+            `• **Self-Archiving**: Deposit accepted manuscripts in repositories\n` +
+            `• **Creative Commons**: Use appropriate open licensing\n` +
+            `• **Predatory Journals**: Avoid journals with questionable practices\n\n` +
+            `**Open Data and Materials:**\n` +
+            `• **Data Repositories**: Use discipline-specific or general repositories\n` +
+            `• **FAIR Principles**: Make data Findable, Accessible, Interoperable, Reusable\n` +
+            `• **Metadata Standards**: Use standardized data documentation\n` +
+            `• **Data Sharing Agreements**: Establish clear usage terms\n` +
+            `• **Privacy Protection**: De-identify sensitive data appropriately\n\n` +
+            `**Open Source Tools:**\n` +
+            `• **Open Software**: Use and contribute to open source tools\n` +
+            `• **Code Sharing**: Make analysis code publicly available\n` +
+            `• **Version Control**: Use Git/GitHub for collaborative development\n` +
+            `• **Documentation**: Provide clear installation and usage instructions\n` +
+            `• **Community Building**: Engage with open source communities\n\n` +
+            `**Collaborative Practices:**\n` +
+            `• **Team Science**: Foster interdisciplinary collaboration\n` +
+            `• **Citizen Science**: Engage public participation when appropriate\n` +
+            `• **Global Partnerships**: Build international research networks\n` +
+            `• **Resource Sharing**: Share equipment, expertise, and infrastructure\n` +
+            `• **Capacity Building**: Support training in underserved regions\n`;
+    }
+    getDataManagementGuidance() {
+        return `### 💾 Research Data Management\n\n` +
+            `**Data Management Planning:**\n` +
+            `• **DMP Requirements**: Create comprehensive data management plans\n` +
+            `• **Data Types**: Identify all data types to be collected/generated\n` +
+            `• **Storage Requirements**: Estimate storage needs and costs\n` +
+            `• **Backup Strategies**: Implement 3-2-1 backup rule (3 copies, 2 media, 1 offsite)\n` +
+            `• **Access Controls**: Define who can access data and when\n\n` +
+            `**Data Collection and Organization:**\n` +
+            `• **File Naming**: Use consistent, descriptive naming conventions\n` +
+            `• **Folder Structure**: Organize data in logical hierarchies\n` +
+            `• **Quality Control**: Implement real-time data validation\n` +
+            `• **Version Control**: Track data versions and modifications\n` +
+            `• **Chain of Custody**: Document data handling and transfers\n\n` +
+            `**Security and Privacy:**\n` +
+            `• **Encryption**: Encrypt sensitive data at rest and in transit\n` +
+            `• **Access Logs**: Monitor and log data access activities\n` +
+            `• **De-identification**: Remove or mask personally identifiable information\n` +
+            `• **Secure Disposal**: Properly delete data when no longer needed\n` +
+            `• **Compliance**: Follow relevant regulations (GDPR, HIPAA, etc.)\n\n` +
+            `**Long-term Preservation:**\n` +
+            `• **File Formats**: Use open, non-proprietary formats when possible\n` +
+            `• **Repository Selection**: Choose appropriate long-term repositories\n` +
+            `• **Metadata**: Create rich descriptive metadata\n` +
+            `• **Digital Preservation**: Plan for format migration and technology changes\n` +
+            `• **Retention Policies**: Follow institutional and funder requirements\n`;
+    }
+    getPublicationEthicsGuidance() {
+        return `### 📝 Publication Ethics Framework\n\n` +
+            `**Authorship Standards:**\n` +
+            `• **ICMJE Criteria**: Substantial contribution, drafting/revision, approval, accountability\n` +
+            `• **Author Order**: Establish clear criteria for author sequencing\n` +
+            `• **Corresponding Author**: Designate responsible communication contact\n` +
+            `• **Acknowledgments**: Credit non-author contributors appropriately\n` +
+            `• **Authorship Disputes**: Address conflicts early and transparently\n\n` +
+            `**Manuscript Preparation:**\n` +
+            `• **Originality**: Ensure work is novel and not previously published\n` +
+            `• **Plagiarism Prevention**: Properly cite all sources and ideas\n` +
+            `• **Data Integrity**: Present data accurately without fabrication\n` +
+            `• **Image Ethics**: Avoid inappropriate manipulation of figures\n` +
+            `• **Conflict Declaration**: Disclose all potential conflicts of interest\n\n` +
+            `**Peer Review Process:**\n` +
+            `• **Review Ethics**: Provide constructive, unbiased evaluations\n` +
+            `• **Confidentiality**: Maintain confidentiality of manuscripts under review\n` +
+            `• **Timeliness**: Complete reviews promptly and professionally\n` +
+            `• **Competing Interests**: Decline reviews with conflicts of interest\n` +
+            `• **Quality Standards**: Uphold scientific rigor in evaluations\n\n` +
+            `**Post-Publication Responsibilities:**\n` +
+            `• **Corrections**: Promptly correct errors and provide errata\n` +
+            `• **Retractions**: Retract publications with serious errors or misconduct\n` +
+            `• **Data Sharing**: Honor data sharing commitments\n` +
+            `• **Response to Criticism**: Engage constructively with legitimate critiques\n` +
+            `• **Follow-up Studies**: Conduct replication studies when appropriate\n`;
+    }
+    getComprehensiveMetaResearchGuidance() {
+        return `### 🔬 Comprehensive Meta-Research Framework\n\n` +
+            `**Research Lifecycle Management:**\n` +
+            `• **Planning Phase**: Systematic review, protocol development, ethics approval\n` +
+            `• **Execution Phase**: Data collection, quality control, interim monitoring\n` +
+            `• **Analysis Phase**: Pre-specified analysis, sensitivity testing, peer review\n` +
+            `• **Dissemination Phase**: Publication, data sharing, community engagement\n` +
+            `• **Translation Phase**: Knowledge mobilization and implementation\n\n` +
+            `**Quality Assurance Systems:**\n` +
+            `• **Standard Operating Procedures**: Develop and follow detailed SOPs\n` +
+            `• **Training Programs**: Ensure all team members are properly trained\n` +
+            `• **Audit Trails**: Maintain complete records of all research activities\n` +
+            `• **External Monitoring**: Engage independent monitors for critical studies\n` +
+            `• **Continuous Improvement**: Regularly review and update practices\n\n` +
+            `**Stakeholder Engagement:**\n` +
+            `• **Community Involvement**: Engage affected communities in research design\n` +
+            `• **Patient and Public Involvement**: Include end-users in health research\n` +
+            `• **Policy Makers**: Connect research to policy implications\n` +
+            `• **Industry Partners**: Manage relationships transparently\n` +
+            `• **International Collaboration**: Foster global research partnerships\n\n` +
+            `**Innovation and Adaptation:**\n` +
+            `• **Emerging Technologies**: Adapt to new tools and methodologies\n` +
+            `• **Interdisciplinary Approaches**: Integrate multiple disciplinary perspectives\n` +
+            `• **Agile Research**: Adapt methods based on interim findings\n` +
+            `• **Capacity Building**: Invest in researcher development\n` +
+            `• **Future Planning**: Anticipate and plan for research trends\n`;
     }
 }
 export const configSchema = z.object({});
@@ -948,7 +1349,7 @@ export function createCognatusServer({ config }) {
     server.tool("literature_search", "Generate optimized search queries and provide guidance for academic literature search - requires agent to use external web search tools", {
         query: z.string().describe("Search query terms")
     }, async (input) => engine.literature_search(input));
-    server.tool("data_analysis", "Statistical analysis of results", { data: z.array(z.string()) }, async (input) => engine.data_analysis(input));
+    server.tool("data_analysis_guidance", "Provides guidance for data analysis - agent performs the actual statistical calculations", { data: z.array(z.string()) }, async (input) => engine.data_analysis_guidance(input));
     server.tool("peer_review_guidance", "Provides guidance for conducting peer review - agent performs the actual review using specified style and focus", {
         focusArea: z.enum(["hypotheses", "methodology", "data", "conclusions", "overall"]).optional().describe("Specific research area to focus the review on"),
         reviewerType: z.enum(["skeptical", "supportive", "methodological", "statistical"]).optional().describe("Type of reviewer approach style to adopt")
@@ -956,6 +1357,16 @@ export function createCognatusServer({ config }) {
     server.tool("score_hypothesis", "Assign an evidence score to a specific hypothesis", { hypothesisId: z.string(), score: z.number().min(0).max(1) }, async (input) => engine.score_hypothesis(input));
     server.tool("check_for_breakthrough", "Check the current average evidence score across all hypotheses", {}, async () => engine.check_for_breakthrough());
     server.tool("get_state", "Get the current state of the research", {}, async () => engine.get_state());
+    server.tool("research_methodology_guidance", "Provides comprehensive guidance for selecting and implementing research methodologies across all research domains", {
+        researchQuestion: z.string().optional().describe("Your specific research question for tailored methodology recommendations"),
+        field: z.string().optional().describe("Research field or discipline"),
+        methodologyType: z.enum(["quantitative", "qualitative", "mixed-methods", "theoretical", "computational", "meta-analysis", "general"]).optional().describe("Specific methodology type for focused guidance")
+    }, async (input) => engine.research_methodology_guidance(input));
+    server.tool("meta_research_guidance", "Comprehensive guidance for research integrity, ethics, reproducibility, and best practices across the entire research lifecycle", {
+        focusArea: z.enum(["ethics", "reproducibility", "bias", "open-science", "data-management", "publication-ethics", "comprehensive"]).optional().describe("Specific aspect of meta-research to focus on"),
+        researchStage: z.string().optional().describe("Current stage of research for tailored guidance"),
+        institution: z.string().optional().describe("Institutional context for specific requirements")
+    }, async (input) => engine.meta_research_guidance(input));
     return server;
 }
 // Create and start the server
