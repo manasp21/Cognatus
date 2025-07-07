@@ -1,12 +1,8 @@
 #!/usr/bin/env node
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  Tool,
-} from "@modelcontextprotocol/sdk/types.js";
+import { McpServer } from "@modelcontextprotocol/sdk/dist/server/mcp.js";
+import { createStatelessServer } from "@smithery/sdk/dist/server/stateless.js";
+import { z } from "zod";
 import chalk from 'chalk';
 
 enum Stage {
@@ -214,240 +210,122 @@ class ScientificMethodEngine {
   }
 }
 
-const TOOLS: Tool[] = [
-  {
-    name: "observation",
-    description: "Problem identification",
-    inputSchema: {
-      type: "object",
-      properties: {
-        problemStatement: { type: "string" },
-      },
-      required: ["problemStatement"],
-    },
-  },
-  {
-    name: "literature_review",
-    description: "Background research",
-    inputSchema: {
-      type: "object",
-      properties: {
-        literature: { type: "string" },
-      },
-      required: ["literature"],
-    },
-  },
-  {
-    name: "hypothesis_formation",
-    description: "Generate a single testable hypothesis",
-    inputSchema: {
-      type: "object",
-      properties: {
-        hypothesis: { type: "string" },
-      },
-      required: ["hypothesis"],
-    },
-  },
-  {
-    name: "hypothesis_generation",
-    description: "Create multiple competing hypotheses",
-    inputSchema: {
-      type: "object",
-      properties: {
-        hypotheses: {
-          type: "array",
-          items: { type: "string" },
-        },
-      },
-      required: ["hypotheses"],
-    },
-  },
-  {
-    name: "experiment_design",
-    description: "Design testing methodology",
-    inputSchema: {
-      type: "object",
-      properties: {
-        experiment: { type: "string" },
-      },
-      required: ["experiment"],
-    },
-  },
-  {
-    name: "data_collection",
-    description: "Gather evidence",
-    inputSchema: {
-      type: "object",
-      properties: {
-        data: { type: "string" },
-      },
-      required: ["data"],
-    },
-  },
-  {
-    name: "analysis",
-    description: "Analyze results",
-    inputSchema: {
-      type: "object",
-      properties: {
-        analysis: { type: "string" },
-      },
-      required: ["analysis"],
-    },
-  },
-  {
-    name: "conclusion",
-    description: "Draw conclusions and refine theory",
-    inputSchema: {
-      type: "object",
-      properties: {
-        conclusion: { type: "string" },
-      },
-      required: ["conclusion"],
-    },
-  },
-  {
-    name: "literature_search",
-    description: "Search academic databases",
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "data_analysis",
-    description: "Statistical analysis of results",
-    inputSchema: {
-      type: "object",
-      properties: {
-        data: {
-          type: "array",
-          items: { type: "string" },
-        },
-      },
-      required: ["data"],
-    },
-  },
-  {
-    name: "peer_review_simulation",
-    description: "Validate findings from multiple perspectives",
-    inputSchema: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "score_hypothesis",
-    description: "Assign an evidence score to a specific hypothesis",
-    inputSchema: {
-      type: "object",
-      properties: {
-        hypothesisId: { type: "string" },
-        score: { type: "number", minimum: 0, maximum: 1 },
-      },
-      required: ["hypothesisId", "score"],
-    },
-  },
-  {
-    name: "check_for_breakthrough",
-    description: "Check the current average evidence score across all hypotheses",
-    inputSchema: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "get_state",
-    description: "Get the current state of the research",
-    inputSchema: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-  },
-];
+export const configSchema = z.object({});
 
-const server = new Server(
-  {
+export const configSchema = z.object({});
+
+export function createCognatusServer({ config }: { config: z.infer<typeof configSchema> }) {
+  const server = new McpServer({
     name: "cognatus-server",
     version: "1.0.0",
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  }
-);
+  });
 
-const engine = new ScientificMethodEngine();
+  const engine = new ScientificMethodEngine();
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: TOOLS,
-}));
+  server.tool(
+    "observation",
+    "Problem identification",
+    z.object({ problemStatement: z.string() }),
+    async ({ problemStatement }) => engine.observation({ problemStatement })
+  );
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  try {
-    switch (request.params.name) {
-      case "observation":
-        return engine.observation(request.params.arguments);
-      case "literature_review":
-        return engine.literature_review(request.params.arguments);
-      case "hypothesis_formation":
-        return engine.hypothesis_formation(request.params.arguments);
-      case "hypothesis_generation":
-        return engine.hypothesis_generation(request.params.arguments);
-      case "experiment_design":
-        return engine.experiment_design(request.params.arguments);
-      case "data_collection":
-        return engine.data_collection(request.params.arguments);
-      case "analysis":
-        return engine.analysis(request.params.arguments);
-      case "conclusion":
-        return engine.conclusion(request.params.arguments);
-      case "literature_search":
-        return engine.literature_search(request.params.arguments);
-      case "data_analysis":
-        return engine.data_analysis(request.params.arguments);
-      case "peer_review_simulation":
-        return engine.peer_review_simulation(request.params.arguments);
-      case "score_hypothesis":
-        return engine.score_hypothesis(request.params.arguments);
-      case "check_for_breakthrough":
-        return engine.check_for_breakthrough();
-      case "get_state":
-        return engine.get_state();
-      default:
-        return {
-          content: [{
-            type: "text",
-            text: `Unknown tool: ${request.params.name}`
-          }],
-          isError: true
-        };
-    }
-  } catch (error) {
-    return {
-      content: [{
-        type: "text",
-        text: error instanceof Error ? error.message : String(error)
-      }],
-      isError: true
-    };
-  }
-});
+  server.tool(
+    "literature_review",
+    "Background research",
+    z.object({ literature: z.string() }),
+    async ({ literature }) => engine.literature_review({ literature })
+  );
 
-async function runServer() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Cognatus MCP Server running on stdio");
+  server.tool(
+    "hypothesis_formation",
+    "Generate a single testable hypothesis",
+    z.object({ hypothesis: z.string() }),
+    async ({ hypothesis }) => engine.hypothesis_formation({ hypothesis })
+  );
+
+  server.tool(
+    "hypothesis_generation",
+    "Create multiple competing hypotheses",
+    z.object({ hypotheses: z.array(z.string()) }),
+    async ({ hypotheses }) => engine.hypothesis_generation({ hypotheses })
+  );
+
+  server.tool(
+    "experiment_design",
+    "Design testing methodology",
+    z.object({ experiment: z.string() }),
+    async ({ experiment }) => engine.experiment_design({ experiment })
+  );
+
+  server.tool(
+    "data_collection",
+    "Gather evidence",
+    z.object({ data: z.string() }),
+    async ({ data }) => engine.data_collection({ data })
+  );
+
+  server.tool(
+    "analysis",
+    "Analyze results",
+    z.object({ analysis: z.string() }),
+    async ({ analysis }) => engine.analysis({ analysis })
+  );
+
+  server.tool(
+    "conclusion",
+    "Draw conclusions and refine theory",
+    z.object({ conclusion: z.string() }),
+    async ({ conclusion }) => engine.conclusion({ conclusion })
+  );
+
+  server.tool(
+    "literature_search",
+    "Search academic databases",
+    z.object({ query: z.string() }),
+    async ({ query }) => engine.literature_search({ query })
+  );
+
+  server.tool(
+    "data_analysis",
+    "Statistical analysis of results",
+    z.object({ data: z.array(z.string()) }),
+    async ({ data }) => engine.data_analysis({ data })
+  );
+
+  server.tool(
+    "peer_review_simulation",
+    "Validate findings from multiple perspectives",
+    z.object({}),
+    async () => engine.peer_review_simulation({})
+  );
+
+  server.tool(
+    "score_hypothesis",
+    "Assign an evidence score to a specific hypothesis",
+    z.object({ hypothesisId: z.string(), score: z.number().min(0).max(1) }),
+    async ({ hypothesisId, score }) => engine.score_hypothesis({ hypothesisId, score })
+  );
+
+  server.tool(
+    "check_for_breakthrough",
+    "Check the current average evidence score across all hypotheses",
+    z.object({}),
+    async () => engine.check_for_breakthrough()
+  );
+
+  server.tool(
+    "get_state",
+    "Get the current state of the research",
+    z.object({}),
+    async () => engine.get_state()
+  );
+
+  return server.server;
 }
 
-runServer().catch((error) => {
-  console.error("Fatal error running server:", error);
-  process.exit(1);
+const { app } = createStatelessServer(createCognatusServer);
+
+const PORT = process.env.PORT || 8081;
+app.listen(PORT, () => {
+  console.error(`Cognatus MCP Server running on port ${PORT}`);
 });
