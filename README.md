@@ -9,8 +9,8 @@ An MCP server implementation that provides a sequential thinking process for sci
 - **Evidence Collection:** Systematically gather supporting/contradicting data
 - **Breakthrough Detection:** Identify patterns and anomalies for novel discoveries
 - **Multi-perspective Analysis:** Simulate peer review and alternative viewpoints
-- **Hybrid Web Search Integration:** Real web search capabilities with automatic fallback to simulation
-- **Intelligent Literature Discovery:** Automatic web search based on problem statements
+- **Ethical Literature Search:** Provides optimized search guidance requiring agents to use real web search tools
+- **Research Integrity:** No fake papers, authors, or citations - only authentic research guidance
 
 ## Tools
 
@@ -23,7 +23,7 @@ An MCP server implementation that provides a sequential thinking process for sci
 - `conclusion` - Draw conclusions and refine theory
 - `hypothesis_generation` - Create multiple competing hypotheses
 - `experiment_design` - Design systematic tests
-- `literature_search` - Comprehensive academic database search with realistic results from PubMed, arXiv, Google Scholar, IEEE, and Scopus
+- `literature_search` - Generate optimized search queries and provide guidance for academic literature search. **Requires agent to use external web search tools** - no fake papers generated
 - `data_analysis` - Advanced statistical analysis including descriptive statistics, inferential statistics, correlation analysis, regression analysis, and hypothesis testing
 - `peer_review_simulation` - Multi-perspective peer review with 4 reviewer types (skeptical, supportive, methodological, statistical) and 5 focus areas (hypotheses, methodology, data, conclusions, overall)
 
@@ -46,31 +46,16 @@ npm run build
 
 ## Configuration
 
-### Web Search Integration
+### Literature Search Ethics
 
-Cognatus supports hybrid web search capabilities that enhance literature review and research with real web data. Configure web search by adding the following to your MCP server configuration:
+Cognatus maintains research integrity by **never generating fake papers, authors, or citations**. Instead, it provides:
 
-```json
-{
-  "mcpServers": {
-    "cognatus": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/cognatus-server"],
-      "env": {
-        "WEB_SEARCH_ENABLED": "true",
-        "WEB_SEARCH_PREFER_REAL": "true",
-        "WEB_SEARCH_FALLBACK": "true"
-      }
-    }
-  }
-}
-```
+- **Optimized Search Queries**: Generates targeted academic search terms
+- **Database-Specific Guidance**: Tailored recommendations for PubMed, arXiv, Google Scholar, IEEE, and Scopus
+- **Search Strategy Tips**: Best practices for academic literature discovery
+- **Agent Responsibility**: Requires agents to use their own web search tools for authentic results
 
-**Web Search Features:**
-- **Real-time Literature Search**: Access current research via web search APIs
-- **Automatic Fallback**: Falls back to simulation if web search is unavailable
-- **Problem-based Auto-search**: Automatically searches web when `autoSearch=true` in literature review
-- **Hybrid Results**: Combines real web results with academic database simulations
+**Important**: The `literature_search` tool provides guidance only - actual research must be conducted using real web search capabilities.
 
 ### Claude Desktop
 

@@ -46,23 +46,8 @@ interface PeerReviewInput {
 
 interface LiteratureSearchInput {
   query: string;
-  database?: 'pubmed' | 'arxiv' | 'scholar' | 'ieee' | 'scopus';
-  limit?: number;
-  yearFrom?: number;
-  yearTo?: number;
 }
 
-interface LiteratureResult {
-  title: string;
-  authors: string[];
-  journal: string;
-  year: number;
-  doi: string;
-  abstract: string;
-  citationCount: number;
-  relevanceScore: number;
-  keywords: string[];
-}
 
 interface DataAnalysisInput {
   data: string[];
@@ -97,28 +82,6 @@ interface DataAnalysisReport {
   recommendations: string[];
 }
 
-interface WebSearchConfig {
-  enabled: boolean;
-  preferReal: boolean;
-  fallbackToSimulation: boolean;
-  availableTools?: string[];
-}
-
-interface WebSearchResult {
-  title: string;
-  url: string;
-  snippet: string;
-  source: string;
-  date?: string;
-}
-
-interface WebSearchResponse {
-  results: WebSearchResult[];
-  totalResults: number;
-  searchTime: number;
-  query: string;
-  source: 'real' | 'simulated';
-}
 
 interface ResearchState {
   currentStage: Stage;
@@ -131,130 +94,12 @@ interface ResearchState {
   conclusions: string[];
 }
 
-class WebSearchService {
-  private config: WebSearchConfig;
-  private availableTools: Set<string>;
-
-  constructor(config: WebSearchConfig = { enabled: true, preferReal: true, fallbackToSimulation: true }) {
-    this.config = config;
-    this.availableTools = new Set(config.availableTools || []);
-  }
-
-  public async search(query: string, options: { 
-    limit?: number; 
-    academic?: boolean; 
-    yearFrom?: number; 
-    yearTo?: number; 
-  } = {}): Promise<WebSearchResponse> {
-    const startTime = Date.now();
-    
-    if (!this.config.enabled) {
-      return this.simulateSearch(query, options, startTime);
-    }
-
-    // Try real web search first if preferred and available
-    if (this.config.preferReal && this.hasWebSearchTools()) {
-      try {
-        const realResult = await this.performRealSearch(query, options);
-        if (realResult) {
-          return {
-            ...realResult,
-            searchTime: Date.now() - startTime,
-            source: 'real' as const
-          };
-        }
-      } catch (error) {
-        console.error('Real web search failed:', error);
-        if (!this.config.fallbackToSimulation) {
-          throw error;
-        }
-      }
-    }
-
-    // Fallback to simulation
-    return this.simulateSearch(query, options, startTime);
-  }
-
-  private hasWebSearchTools(): boolean {
-    return this.availableTools.has('WebSearch') || this.availableTools.has('WebFetch');
-  }
-
-  private async performRealSearch(query: string, options: any): Promise<WebSearchResponse | null> {
-    // This would integrate with actual web search tools available in the MCP context
-    // For now, we'll return null to indicate real search is not available
-    // In a real implementation, this would call the available web search tools
-    
-    // Example implementation would be:
-    // if (this.availableTools.has('WebSearch')) {
-    //   return await this.callWebSearchTool(query, options);
-    // }
-    
-    return null;
-  }
-
-  private simulateSearch(query: string, options: any, startTime: number): WebSearchResponse {
-    const results: WebSearchResult[] = this.generateSimulatedResults(query, options.limit || 10);
-    
-    return {
-      results,
-      totalResults: results.length,
-      searchTime: Date.now() - startTime,
-      query,
-      source: 'simulated' as const
-    };
-  }
-
-  private generateSimulatedResults(query: string, limit: number): WebSearchResult[] {
-    const results: WebSearchResult[] = [];
-    const currentYear = new Date().getFullYear();
-    
-    // Generate realistic web search results
-    for (let i = 0; i < limit; i++) {
-      const year = currentYear - Math.floor(Math.random() * 5);
-      results.push({
-        title: `${query}: Research and Analysis - Study ${i + 1}`,
-        url: `https://example.com/research/${query.toLowerCase().replace(/\s+/g, '-')}-${i + 1}`,
-        snippet: `Recent research on ${query} shows significant findings in this area. This study examines the implications and provides new insights into ${query} methodology and applications.`,
-        source: 'Academic Research Portal',
-        date: `${year}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`
-      });
-    }
-    
-    return results;
-  }
-
-  public formatWebSearchForLiterature(response: WebSearchResponse): string {
-    let formatted = `## 🔍 Literature Search Results\n\n`;
-    formatted += `**Query:** "${response.query}"\n`;
-    formatted += `**Source:** ${response.source === 'real' ? '🌐 Real web search' : '🔬 Simulated search'}\n`;
-    formatted += `**Results:** ${response.results.length} of ${response.totalResults}\n`;
-    formatted += `**Search Time:** ${response.searchTime}ms\n\n`;
-    
-    response.results.forEach((result, index) => {
-      formatted += `### ${index + 1}. ${result.title}\n`;
-      formatted += `**Source:** ${result.source}\n`;
-      if (result.date) {
-        formatted += `**Date:** ${result.date}\n`;
-      }
-      formatted += `**URL:** ${result.url}\n`;
-      formatted += `**Summary:** ${result.snippet}\n\n`;
-    });
-    
-    if (response.source === 'simulated') {
-      formatted += `💡 **Note:** These are simulated results. For real research, enable web search tools in your MCP configuration.\n\n`;
-    }
-    
-    return formatted;
-  }
-}
 
 class ScientificMethodEngine {
   public state: ResearchState;
-  private webSearchService: WebSearchService;
 
-  constructor(webSearchConfig?: WebSearchConfig) {
+  constructor() {
     this.state = this.getInitialState();
-    this.webSearchService = new WebSearchService(webSearchConfig);
   }
 
   private getInitialState(): ResearchState {
@@ -350,8 +195,8 @@ class ScientificMethodEngine {
     }, 'observation');
   }
 
-  public async literature_review(input: unknown): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-    return this.safeExecute(async () => {
+  public literature_review(input: unknown): { content: Array<{ type: "text"; text: string }> } {
+    return this.safeExecute(() => {
       this.validateInput(input, ['literature']);
       const { literature, autoSearch = false } = input as { literature: string; autoSearch?: boolean };
       
@@ -359,46 +204,31 @@ class ScientificMethodEngine {
         throw new Error('Literature review must be at least 20 characters long');
       }
       
-      let finalOutput = `Literature review added: ${literature}`;
+      let finalOutput = `## 📚 Literature Review\n\n`;
+      finalOutput += `**Manual Review Added:** ${literature}\n\n`;
       
-      // Add automatic web search if enabled and we have a problem statement
+      // Provide web search guidance if autoSearch is enabled
       if (autoSearch && this.state.problemStatement) {
-        try {
-          this.log('Performing automatic literature search based on problem statement', 'info');
-          
-          // Generate search queries from problem statement
-          const searchQueries = this.generateSearchQueries(this.state.problemStatement);
-          let webSearchResults = '';
-          
-          for (const query of searchQueries.slice(0, 2)) { // Limit to 2 queries to avoid overwhelming
-            const searchResponse = await this.webSearchService.search(query, {
-              limit: 3,
-              academic: true
-            });
-            
-            if (searchResponse.results.length > 0) {
-              webSearchResults += `\n\n### 🔍 Auto-Search Results for "${query}"\n`;
-              webSearchResults += `**Source:** ${searchResponse.source === 'real' ? 'Real web search' : 'Simulated search'}\n\n`;
-              
-              searchResponse.results.forEach((result, index) => {
-                webSearchResults += `${index + 1}. **${result.title}**\n`;
-                webSearchResults += `   ${result.snippet}\n`;
-                webSearchResults += `   Source: ${result.source} | URL: ${result.url}\n\n`;
-              });
-            }
-          }
-          
-          if (webSearchResults) {
-            finalOutput += `\n\n## 📚 Automatic Literature Search Results\n${webSearchResults}`;
-            finalOutput += `\n💡 **Tip:** Use the \`literature_search\` tool for more comprehensive academic database searches.`;
-          }
-          
-        } catch (error) {
-          this.log(`Auto-search failed: ${error}`, 'warning');
-          finalOutput += `\n\n⚠️ **Note:** Automatic literature search failed. Consider using the \`literature_search\` tool manually.`;
-        }
+        const searchQueries = this.generateSearchQueries(this.state.problemStatement);
+        
+        finalOutput += `### 🌐 Additional Research Needed\n\n`;
+        finalOutput += `Based on your problem statement, please use your web search tools to research the following:\n\n`;
+        
+        searchQueries.forEach((query, index) => {
+          finalOutput += `**${index + 1}.** \`${query}\`\n`;
+        });
+        
+        finalOutput += `\n### 💡 Search Recommendations\n`;
+        finalOutput += `• Use academic search engines (Google Scholar, PubMed, arXiv)\n`;
+        finalOutput += `• Look for peer-reviewed publications\n`;
+        finalOutput += `• Check recent publications (last 5 years)\n`;
+        finalOutput += `• Include systematic reviews and meta-analyses\n`;
+        finalOutput += `• Verify source credibility and citation counts\n\n`;
+        finalOutput += `After completing your web searches, add the findings to your literature review.\n\n`;
+        
       } else if (autoSearch && !this.state.problemStatement) {
-        finalOutput += `\n\n💡 **Tip:** Complete the observation stage first to enable automatic literature search based on your problem statement.`;
+        finalOutput += `### ⚠️ Search Guidance Unavailable\n`;
+        finalOutput += `Complete the observation stage first to get automated search query suggestions based on your problem statement.\n\n`;
       }
       
       this.state.literature.push(literature);
@@ -503,325 +333,59 @@ class ScientificMethodEngine {
     return { content: [{ type: "text", text: `Conclusion drawn. Research complete.` }] };
   }
   
-  public async literature_search(input: unknown): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-    return this.safeExecute(async () => {
+  public literature_search(input: unknown): { content: Array<{ type: "text"; text: string }> } {
+    return this.safeExecute(() => {
       this.validateInput(input, ['query']);
-      const params = input as LiteratureSearchInput;
-      const { query, database = 'scholar', limit = 10, yearFrom, yearTo } = params;
+      const { query } = input as LiteratureSearchInput;
       
       if (query.length < 3) {
         throw new Error('Search query must be at least 3 characters long');
       }
       
-      // Try web search first, then fallback to academic database simulation
-      try {
-        const webSearchResponse = await this.webSearchService.search(query, {
-          limit: Math.min(limit, 5), // Limit web search results
-          academic: true,
-          yearFrom,
-          yearTo
-        });
-        
-        if (webSearchResponse.source === 'real') {
-          // Use real web search results
-          const webSearchSummary = this.webSearchService.formatWebSearchForLiterature(webSearchResponse);
-          
-          // Also generate academic database results for comparison
-          const academicResults = this.generateLiteratureResults(query, database, limit - webSearchResponse.results.length, yearFrom, yearTo);
-          const academicSummary = this.formatLiteratureSearchResults(academicResults, query, database);
-          
-          const combinedSummary = `${webSearchSummary}\n---\n\n## 📚 Academic Database Results\n\n${academicSummary}`;
-          
-          // Add to literature state for future reference
-          const literatureEntry = `Literature search: "${query}" via web search + ${database} (${webSearchResponse.results.length + academicResults.length} results)`;
-          this.state.literature.push(literatureEntry);
-          
-          this.log(`Literature search completed: ${webSearchResponse.results.length} web + ${academicResults.length} academic results for "${query}"`, 'success');
-          return { content: [{ type: "text" as const, text: combinedSummary }] };
-        }
-      } catch (error) {
-        this.log(`Web search failed, falling back to academic database simulation: ${error}`, 'warning');
-      }
+      // Generate optimized academic search queries
+      const optimizedQueries = this.generateAcademicSearchQueries(query);
       
-      // Fallback to academic database simulation
-      const results = this.generateLiteratureResults(query, database, limit, yearFrom, yearTo);
-      const summary = this.formatLiteratureSearchResults(results, query, database);
+      let searchGuidance = `## 🔍 Literature Search Request\n\n`;
+      searchGuidance += `**Original Query:** "${query}"\n\n`;
+      searchGuidance += `### 🌐 Please Use Your Web Search Tools\n\n`;
+      searchGuidance += `Use your available web search capabilities to find academic literature. Search for these optimized queries:\n\n`;
       
-      // Add to literature state for future reference
-      const literatureEntry = `Literature search: "${query}" in ${database} (${results.length} results found)`;
+      optimizedQueries.forEach((searchQuery, index) => {
+        searchGuidance += `**${index + 1}.** \`${searchQuery}\`\n`;
+      });
+      
+      searchGuidance += `\n### 💡 Search Tips\n`;
+      searchGuidance += `• Your web search should automatically access academic databases\n`;
+      searchGuidance += `• Look for peer-reviewed sources and citations\n`;
+      searchGuidance += `• Include recent publications when relevant\n`;
+      searchGuidance += `• Verify source credibility\n\n`;
+      
+      searchGuidance += `Please provide the actual research results you find for integration into the literature review.`;
+      
+      // Add to literature state for tracking
+      const literatureEntry = `Literature search requested: "${query}"`;
       this.state.literature.push(literatureEntry);
       
-      this.log(`Literature search completed: ${results.length} results for "${query}" in ${database}`, 'success');
-      return { content: [{ type: "text" as const, text: summary }] };
+      this.log(`Literature search guidance provided for: "${query}"`, 'info');
+      return { content: [{ type: "text" as const, text: searchGuidance }] };
     }, 'literature_search');
   }
 
-  private generateLiteratureResults(query: string, database: string, limit: number, yearFrom?: number, yearTo?: number): LiteratureResult[] {
-    const currentYear = new Date().getFullYear();
-    const fromYear = yearFrom || currentYear - 10;
-    const toYear = yearTo || currentYear;
+  private generateAcademicSearchQueries(query: string): string[] {
+    const queries: string[] = [];
     
-    // Simulate realistic search results based on query and database
-    const baseResults = this.getLiteratureTemplates(query, database);
-    const results: LiteratureResult[] = [];
+    // Base academic query
+    queries.push(`${query} academic research`);
     
-    for (let i = 0; i < Math.min(limit, baseResults.length); i++) {
-      const template = baseResults[i];
-      const year = this.randomBetween(fromYear, toYear);
-      const relevanceScore = Math.max(0.3, 1 - (i * 0.1) + (Math.random() * 0.2 - 0.1));
-      
-      results.push({
-        title: this.generateTitle(query, template.area),
-        authors: this.generateAuthors(),
-        journal: this.getJournalForDatabase(database, template.area),
-        year: year,
-        doi: this.generateDOI(),
-        abstract: this.generateAbstract(query, template.area),
-        citationCount: this.generateCitationCount(year, relevanceScore),
-        relevanceScore: Math.round(relevanceScore * 100) / 100,
-        keywords: this.generateKeywords(query, template.area)
-      });
-    }
+    // Quoted exact phrase for precision
+    queries.push(`"${query}" study`);
     
-    // Sort by relevance score (highest first)
-    return results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    // Peer review focused
+    queries.push(`${query} peer reviewed`);
+    
+    return queries;
   }
-  
-  private getLiteratureTemplates(query: string, database: string) {
-    const queryLower = query.toLowerCase();
-    const templates = [];
-    
-    // Research area classification
-    if (queryLower.includes('machine learning') || queryLower.includes('neural') || queryLower.includes('ai')) {
-      templates.push(
-        { area: 'machine_learning', count: 8 },
-        { area: 'computer_science', count: 5 },
-        { area: 'statistics', count: 3 }
-      );
-    } else if (queryLower.includes('biology') || queryLower.includes('medical') || queryLower.includes('health')) {
-      templates.push(
-        { area: 'biology', count: 8 },
-        { area: 'medicine', count: 6 },
-        { area: 'biochemistry', count: 4 }
-      );
-    } else if (queryLower.includes('physics') || queryLower.includes('quantum') || queryLower.includes('energy')) {
-      templates.push(
-        { area: 'physics', count: 8 },
-        { area: 'engineering', count: 5 },
-        { area: 'materials', count: 3 }
-      );
-    } else if (queryLower.includes('psychology') || queryLower.includes('behavior') || queryLower.includes('cognitive')) {
-      templates.push(
-        { area: 'psychology', count: 8 },
-        { area: 'neuroscience', count: 5 },
-        { area: 'sociology', count: 3 }
-      );
-    } else {
-      // Generic interdisciplinary results
-      templates.push(
-        { area: 'interdisciplinary', count: 6 },
-        { area: 'general_science', count: 4 },
-        { area: 'methodology', count: 3 }
-      );
-    }
-    
-    // Flatten templates for result generation
-    const flatResults: {area: string}[] = [];
-    templates.forEach(template => {
-      for (let i = 0; i < template.count; i++) {
-        flatResults.push({ area: template.area });
-      }
-    });
-    
-    return flatResults;
-  }
-  
-  private generateTitle(query: string, area: string): string {
-    const titleTemplates = {
-      machine_learning: [
-        `Advanced ${query} Approaches in Deep Learning Applications`,
-        `${query}: A Comprehensive Machine Learning Framework`,
-        `Novel ${query} Algorithms for Predictive Modeling`,
-        `${query} in Neural Network Architectures: Recent Advances`
-      ],
-      biology: [
-        `${query} in Biological Systems: Molecular Mechanisms`,
-        `Investigating ${query} Through Genomic Analysis`,
-        `${query}: Implications for Cellular Biology Research`,
-        `Evolutionary Aspects of ${query} in Living Organisms`
-      ],
-      physics: [
-        `Quantum ${query} Phenomena in Modern Physics`,
-        `${query}: Theoretical and Experimental Investigations`,
-        `Advanced ${query} Models in Condensed Matter Physics`,
-        `${query} Dynamics in Complex Physical Systems`
-      ],
-      psychology: [
-        `${query} and Human Cognitive Processes`,
-        `Psychological Aspects of ${query} in Behavioral Studies`,
-        `${query}: A Meta-Analysis of Psychological Research`,
-        `Neurocognitive Mechanisms of ${query} Processing`
-      ],
-      engineering: [
-        `Engineering Applications of ${query} in Modern Systems`,
-        `${query}-Based Solutions for Industrial Challenges`,
-        `Optimization of ${query} in Engineering Design`,
-        `${query} Technologies: Implementation and Performance`
-      ],
-      default: [
-        `Research Advances in ${query}`,
-        `${query}: Current State and Future Directions`,
-        `Comprehensive Review of ${query} Literature`,
-        `${query} Studies: Methodological Approaches`
-      ]
-    };
-    
-    const templates = titleTemplates[area as keyof typeof titleTemplates] || titleTemplates.default;
-    return templates[Math.floor(Math.random() * templates.length)];
-  }
-  
-  private generateAuthors(): string[] {
-    const firstNames = ['John', 'Sarah', 'Michael', 'Emma', 'David', 'Lisa', 'Robert', 'Anna', 'James', 'Maria', 'William', 'Jennifer', 'Thomas', 'Amy', 'Richard'];
-    const lastNames = ['Smith', 'Johnson', 'Brown', 'Davis', 'Miller', 'Wilson', 'Moore', 'Taylor', 'Anderson', 'Thomas', 'Jackson', 'White', 'Harris', 'Martin', 'Thompson'];
-    
-    const authorCount = this.randomBetween(2, 6);
-    const authors: string[] = [];
-    
-    for (let i = 0; i < authorCount; i++) {
-      const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-      const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
-      authors.push(`${firstName} ${lastName}`);
-    }
-    
-    return authors;
-  }
-  
-  private getJournalForDatabase(database: string, area: string): string {
-    const journals = {
-      pubmed: ['Nature Medicine', 'Cell', 'Science', 'NEJM', 'Lancet', 'PLOS Medicine', 'BMJ'],
-      arxiv: ['arXiv Preprint', 'ArXiv Physics', 'ArXiv Computer Science', 'ArXiv Mathematics'],
-      scholar: ['Nature', 'Science', 'Cell', 'PNAS', 'Scientific Reports', 'PLOS ONE'],
-      ieee: ['IEEE Transactions', 'IEEE Access', 'IEEE Computer', 'IEEE Signal Processing'],
-      scopus: ['Elsevier Journal', 'Springer Nature', 'Wiley Research', 'Academic Press']
-    };
-    
-    const dbJournals = journals[database as keyof typeof journals] || journals.scholar;
-    return dbJournals[Math.floor(Math.random() * dbJournals.length)];
-  }
-  
-  private generateDOI(): string {
-    const prefix = '10.1' + Math.floor(Math.random() * 900 + 100);
-    const suffix = Math.random().toString(36).substring(2, 15);
-    return `${prefix}/${suffix}`;
-  }
-  
-  private generateAbstract(query: string, area: string): string {
-    const abstracts = {
-      machine_learning: `This study presents a novel approach to ${query} using advanced machine learning techniques. We developed and evaluated algorithms that demonstrate significant improvements in accuracy and computational efficiency. Our methodology combines deep neural networks with innovative feature extraction methods, resulting in state-of-the-art performance on benchmark datasets. The results show promising applications for real-world implementation.`,
-      
-      biology: `We investigated the role of ${query} in biological systems through comprehensive experimental analysis. Our research utilized cutting-edge molecular biology techniques to examine cellular mechanisms and pathways. The findings reveal important insights into the fundamental processes governing ${query} in living organisms, with implications for understanding disease mechanisms and potential therapeutic targets.`,
-      
-      physics: `This research explores ${query} phenomena through both theoretical modeling and experimental validation. We present new mathematical frameworks that accurately describe the observed behaviors and predict novel effects. Our experimental setup confirmed theoretical predictions and revealed unexpected properties that advance our understanding of fundamental physical principles.`,
-      
-      psychology: `We conducted a comprehensive psychological study examining ${query} and its impact on human behavior and cognition. Using rigorous experimental design with a large participant pool, we identified significant patterns in cognitive processing and behavioral responses. The results contribute to theoretical models of human psychology and have practical implications for applied settings.`,
-      
-      default: `This research provides a comprehensive analysis of ${query} through systematic investigation and methodological innovation. We employed multi-disciplinary approaches to examine key aspects and relationships. Our findings contribute significant new knowledge to the field and identify important directions for future research and practical applications.`
-    };
-    
-    return abstracts[area as keyof typeof abstracts] || abstracts.default;
-  }
-  
-  private generateCitationCount(year: number, relevanceScore: number): number {
-    const currentYear = new Date().getFullYear();
-    const age = currentYear - year;
-    const baseCitations = Math.floor(relevanceScore * 100);
-    const ageFactor = Math.max(0.1, 1 - (age * 0.1));
-    return Math.floor(baseCitations * ageFactor * (1 + Math.random()));
-  }
-  
-  private generateKeywords(query: string, area: string): string[] {
-    const baseKeywords = query.toLowerCase().split(' ').filter(word => word.length > 2);
-    const areaKeywords = {
-      machine_learning: ['neural networks', 'deep learning', 'artificial intelligence', 'algorithms', 'data mining'],
-      biology: ['molecular biology', 'genetics', 'cellular mechanisms', 'biochemistry', 'proteomics'],
-      physics: ['quantum mechanics', 'theoretical physics', 'experimental physics', 'materials science'],
-      psychology: ['cognitive psychology', 'behavioral analysis', 'neuroscience', 'experimental psychology'],
-      default: ['research methodology', 'data analysis', 'scientific investigation', 'empirical study']
-    };
-    
-    const areaKeys = areaKeywords[area as keyof typeof areaKeywords] || areaKeywords.default;
-    const selectedKeywords = [...baseKeywords];
-    
-    // Add 2-3 area-specific keywords
-    for (let i = 0; i < 3 && i < areaKeys.length; i++) {
-      if (Math.random() > 0.3) {
-        selectedKeywords.push(areaKeys[i]);
-      }
-    }
-    
-    return selectedKeywords.slice(0, 8);
-  }
-  
-  private randomBetween(min: number, max: number): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-  }
-  
-  private formatLiteratureSearchResults(results: LiteratureResult[], query: string, database: string): string {
-    if (results.length === 0) {
-      return `## 📚 Literature Search Results\n\n**Query:** "${query}"\n**Database:** ${database}\n\n❌ No results found. Try adjusting your search terms or expanding the search criteria.`;
-    }
-    
-    let summary = `## 📚 Literature Search Results\n\n`;
-    summary += `**Query:** "${query}"\n`;
-    summary += `**Database:** ${database.charAt(0).toUpperCase() + database.slice(1)}\n`;
-    summary += `**Results Found:** ${results.length}\n\n`;
-    
-    results.forEach((result, index) => {
-      const relevanceEmoji = result.relevanceScore > 0.8 ? "🟢" : result.relevanceScore > 0.6 ? "🟡" : "🔴";
-      
-      summary += `### ${index + 1}. ${result.title}\n`;
-      summary += `**Authors:** ${result.authors.join(', ')}\n`;
-      summary += `**Journal:** ${result.journal} (${result.year})\n`;
-      summary += `**DOI:** ${result.doi}\n`;
-      summary += `**Citations:** ${result.citationCount}\n`;
-      summary += `**Relevance:** ${relevanceEmoji} ${(result.relevanceScore * 100).toFixed(0)}%\n`;
-      summary += `**Keywords:** ${result.keywords.join(', ')}\n\n`;
-      summary += `**Abstract:** ${result.abstract}\n\n`;
-      summary += `---\n\n`;
-    });
-    
-    // Add search summary statistics
-    const avgRelevance = results.reduce((sum, r) => sum + r.relevanceScore, 0) / results.length;
-    const avgCitations = Math.round(results.reduce((sum, r) => sum + r.citationCount, 0) / results.length);
-    const yearRange = `${Math.min(...results.map(r => r.year))}-${Math.max(...results.map(r => r.year))}`;
-    
-    summary += `### 📊 Search Summary\n`;
-    summary += `• **Average Relevance:** ${(avgRelevance * 100).toFixed(1)}%\n`;
-    summary += `• **Average Citations:** ${avgCitations}\n`;
-    summary += `• **Year Range:** ${yearRange}\n`;
-    summary += `• **Top Keywords:** ${this.getTopKeywords(results)}\n\n`;
-    
-    summary += `💡 **Tip:** Use these results to inform your literature review and identify key research gaps.`;
-    
-    return summary;
-  }
-  
-  private getTopKeywords(results: LiteratureResult[]): string {
-    const keywordCounts: {[key: string]: number} = {};
-    
-    results.forEach(result => {
-      result.keywords.forEach(keyword => {
-        keywordCounts[keyword] = (keywordCounts[keyword] || 0) + 1;
-      });
-    });
-    
-    const sortedKeywords = Object.entries(keywordCounts)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 5)
-      .map(([keyword]) => keyword);
-      
-    return sortedKeywords.join(', ');
-  }
+
 
   public data_analysis(input: unknown): { content: Array<{ type: "text"; text: string }> } {
     return this.safeExecute(() => {
@@ -1691,14 +1255,7 @@ interface LiteratureSearchInput { query: string; }
 interface DataAnalysisInput { data: string[]; }
 interface ScoreHypothesisInput { hypothesisId: string; score: number; }
 
-export const configSchema = z.object({
-  webSearch: z.object({
-    enabled: z.boolean().default(true),
-    preferReal: z.boolean().default(true),
-    fallbackToSimulation: z.boolean().default(true),
-    availableTools: z.array(z.string()).optional().describe("Available web search tools like 'WebSearch', 'WebFetch'")
-  }).optional()
-});
+export const configSchema = z.object({});
 
 export function createCognatusServer({ config }: { config: z.infer<typeof configSchema> }) {
   const server = new McpServer({
@@ -1706,7 +1263,7 @@ export function createCognatusServer({ config }: { config: z.infer<typeof config
     version: "1.0.0",
   });
 
-  const engine = new ScientificMethodEngine(config.webSearch);
+  const engine = new ScientificMethodEngine();
 
   // Primary unified scientific thinking tool
   server.tool(
@@ -1784,10 +1341,10 @@ export function createCognatusServer({ config }: { config: z.infer<typeof config
 
   server.tool(
     "literature_review",
-    "Background research with optional automatic web search",
+    "Background research with web search guidance recommendations",
     { 
       literature: z.string(),
-      autoSearch: z.boolean().optional().describe("Enable automatic web search based on problem statement")
+      autoSearch: z.boolean().optional().describe("Enable web search guidance based on problem statement")
     },
     async (input: { literature: string; autoSearch?: boolean }) => engine.literature_review(input)
   );
@@ -1836,13 +1393,9 @@ export function createCognatusServer({ config }: { config: z.infer<typeof config
 
   server.tool(
     "literature_search",
-    "Search academic databases with advanced filtering and realistic results",
+    "Generate optimized search queries and provide guidance for academic literature search - requires agent to use external web search tools",
     { 
-      query: z.string().describe("Search query terms"),
-      database: z.enum(["pubmed", "arxiv", "scholar", "ieee", "scopus"]).optional().describe("Academic database to search"),
-      limit: z.number().min(1).max(50).optional().describe("Maximum number of results (default: 10)"),
-      yearFrom: z.number().min(1900).optional().describe("Start year for search range"),
-      yearTo: z.number().max(2030).optional().describe("End year for search range")
+      query: z.string().describe("Search query terms")
     },
     async (input: LiteratureSearchInput) => engine.literature_search(input)
   );

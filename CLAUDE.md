@@ -23,17 +23,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Tracks research state including problem statement, literature, hypotheses, experiments, data, and conclusions
 - Enforces valid stage transitions via `STAGE_TRANSITIONS` map
 
-**WebSearchService** - Hybrid web search integration:
-- Detects available web search tools in MCP context (WebSearch, WebFetch)
-- Configurable preferences (enabled, preferReal, fallbackToSimulation)
-- Generates realistic simulated results when real search unavailable
-- Formats search results for literature integration
-
 **MCP Server Integration** - Built using Model Context Protocol SDK:
-- Implements 13+ research tools with async support for web search
-- Uses Zod schemas for input validation with web search configuration
+- Implements 13+ research tools focused on ethical research guidance
+- Uses Zod schemas for input validation
 - Integrates with Smithery SDK for stateless server creation
-- Enhanced with web search configuration schema
+- Provides authentic research workflow without fake content generation
 
 **State Management** - Research state contains:
 - `currentStage`: Current research phase
@@ -52,9 +46,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Improved State Management** - Better state tracking with detailed progress information and stage guidance
 
-**Hybrid Web Search Integration** - Real web search capabilities with automatic fallback to simulation. Includes WebSearchService for tool detection and result processing
+**Ethical Literature Search** - Provides optimized search query generation and guidance without creating fake academic content. Maintains research integrity by requiring agents to use real web search tools
 
-**Intelligent Literature Discovery** - Automatic search query generation from problem statements with configurable search preferences
+**Research Integrity Commitment** - Never generates fake papers, authors, DOIs, or citations. All literature search functionality guides users to authentic research sources
 
 ## Technology Stack
 
@@ -79,12 +73,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Individual Stage Tools:**
 - `observation` - Problem identification 
-- `literature_review` - Background research with optional automatic web search (autoSearch parameter)
+- `literature_review` - Background research with optional web search guidance (autoSearch parameter provides search query recommendations)
 - `hypothesis_formation`, `experiment_design`, `data_collection`, `analysis`, `conclusion` - Sequential research stages
 
 **Research Management Tools:**
 - `hypothesis_generation` - Create multiple competing hypotheses with automatic scoring
-- `literature_search` - Hybrid literature search combining real web search (when available) with academic database simulation from PubMed, arXiv, Google Scholar, IEEE, and Scopus. Includes citation counts, abstracts, relevance scoring, and automatic fallback mechanisms
+- `literature_search` - Ethical literature search guidance providing optimized search queries and database-specific recommendations for PubMed, arXiv, Google Scholar, IEEE, and Scopus. **Requires agents to use external web search tools** - generates no fake content
 - `data_analysis` - Advanced statistical analysis including descriptive statistics (mean, median, mode, standard deviation), inferential statistics (t-tests, confidence intervals), correlation analysis (Pearson correlation), regression analysis (linear regression with R-squared), and hypothesis testing (normality tests, significance testing)
 - `peer_review_simulation` - Multi-perspective peer review with 4 reviewer types (skeptical, supportive, methodological, statistical) and 5 focus areas (hypotheses, methodology, data, conclusions, overall), providing detailed critique, suggestions, and confidence ratings
 - `score_hypothesis`, `check_for_breakthrough`, `get_state`
