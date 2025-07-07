@@ -31,14 +31,6 @@ interface Hypothesis {
   evidenceScore: number;
 }
 
-interface PeerReviewFeedback {
-  perspective: string;
-  critique: string;
-  suggestions: string[];
-  confidenceRating: number;
-  potentialFlaws: string[];
-}
-
 interface PeerReviewInput {
   focusArea?: 'hypotheses' | 'methodology' | 'data' | 'conclusions' | 'overall';
   reviewerType?: 'skeptical' | 'supportive' | 'methodological' | 'statistical';
@@ -874,7 +866,7 @@ class ScientificMethodEngine {
     return summary;
   }
 
-  public peer_review_simulation(input: unknown): { content: Array<{ type: "text"; text: string }> } {
+  public peer_review_guidance(input: unknown): { content: Array<{ type: "text"; text: string }> } {
     return this.safeExecute(() => {
       const params = (input || {}) as PeerReviewInput;
       const focusArea = params.focusArea || 'overall';
@@ -885,294 +877,144 @@ class ScientificMethodEngine {
         return { content: [{ type: "text", text: "❌ Insufficient research content for peer review. Please complete observation, hypothesis formation, or data collection first." }] };
       }
       
-      const feedback = this.generatePeerReviewFeedback(focusArea, reviewerType);
-      const summary = this.formatPeerReviewSummary(feedback, focusArea, reviewerType);
+      const guidance = this.generatePeerReviewGuidance(focusArea, reviewerType);
       
-      this.log(`Peer review simulation completed: ${reviewerType} perspective on ${focusArea}`, 'info');
-      return { content: [{ type: "text", text: summary }] };
-    }, 'peer_review_simulation');
+      this.log(`Peer review guidance provided: ${reviewerType} perspective on ${focusArea}`, 'info');
+      return { content: [{ type: "text" as const, text: guidance }] };
+    }, 'peer_review_guidance');
   }
 
-  private generatePeerReviewFeedback(focusArea: string, reviewerType: string): PeerReviewFeedback {
-    const perspectives = {
-      skeptical: "Critical Skeptical Reviewer",
-      supportive: "Supportive Academic Reviewer", 
-      methodological: "Methodological Expert Reviewer",
-      statistical: "Statistical Analysis Reviewer"
+  private generatePeerReviewGuidance(focusArea: string, reviewerType: string): string {
+    let guidance = `## 🔍 Peer Review Guidance\n\n`;
+    guidance += `**Review Style:** ${this.getReviewerStyle(reviewerType)}\n`;
+    guidance += `**Focus Area:** ${focusArea.charAt(0).toUpperCase() + focusArea.slice(1)}\n\n`;
+    
+    guidance += `### 🎯 Your Task\n`;
+    guidance += `Please conduct a peer review of the research using your own knowledge and analysis.\n\n`;
+    
+    guidance += `### 📋 Current Research State\n`;
+    guidance += `• **Problem Statement:** ${this.state.problemStatement || 'Not defined'}\n`;
+    guidance += `• **Literature Sources:** ${this.state.literature.length}\n`;
+    guidance += `• **Hypotheses:** ${this.state.hypotheses.length} formulated\n`;
+    guidance += `• **Experiments:** ${this.state.experiments.length} designed\n`;
+    guidance += `• **Data Points:** ${this.state.data.length} collected\n`;
+    guidance += `• **Analysis:** ${this.state.analysis ? 'Completed' : 'Not completed'}\n`;
+    guidance += `• **Conclusions:** ${this.state.conclusions.length} drawn\n\n`;
+    
+    guidance += this.getReviewGuidanceByType(reviewerType, focusArea);
+    guidance += this.getFocusAreaGuidance(focusArea);
+    
+    guidance += `\n### 💡 Review Framework\n`;
+    guidance += `Please provide your review covering:\n`;
+    guidance += `• **Strengths:** What works well in this research\n`;
+    guidance += `• **Weaknesses:** Areas that need improvement\n`;
+    guidance += `• **Suggestions:** Specific recommendations for enhancement\n`;
+    guidance += `• **Questions:** Critical questions that need addressing\n\n`;
+    
+    guidance += `**Remember:** You are the peer reviewer - use your expertise and critical thinking to provide authentic, valuable feedback.`;
+    
+    return guidance;
+  }
+
+  private getReviewerStyle(reviewerType: string): string {
+    const styles = {
+      skeptical: "Critical and questioning - challenge assumptions, seek disconfirming evidence",
+      supportive: "Constructive and encouraging - identify strengths while suggesting improvements", 
+      methodological: "Focus on experimental design, procedures, and scientific rigor",
+      statistical: "Emphasize data analysis, statistical validity, and quantitative aspects"
     };
-    
-    let critique = "";
-    let suggestions: string[] = [];
-    let potentialFlaws: string[] = [];
-    let confidenceRating = 0.5;
-    
-    // Analyze based on focus area
-    switch (focusArea) {
-      case 'hypotheses':
-        ({ critique, suggestions, potentialFlaws, confidenceRating } = this.reviewHypotheses(reviewerType));
-        break;
-      case 'methodology':
-        ({ critique, suggestions, potentialFlaws, confidenceRating } = this.reviewMethodology(reviewerType));
-        break;
-      case 'data':
-        ({ critique, suggestions, potentialFlaws, confidenceRating } = this.reviewData(reviewerType));
-        break;
-      case 'conclusions':
-        ({ critique, suggestions, potentialFlaws, confidenceRating } = this.reviewConclusions(reviewerType));
-        break;
-      default:
-        ({ critique, suggestions, potentialFlaws, confidenceRating } = this.reviewOverall(reviewerType));
-    }
-    
-    return {
-      perspective: perspectives[reviewerType as keyof typeof perspectives],
-      critique,
-      suggestions,
-      confidenceRating,
-      potentialFlaws
-    };
+    return styles[reviewerType as keyof typeof styles] || styles.methodological;
   }
-  
-  private reviewHypotheses(reviewerType: string) {
-    const hypotheses = this.state.hypotheses;
-    let critique = "";
-    let suggestions: string[] = [];
-    let potentialFlaws: string[] = [];
-    let confidenceRating = 0.5;
-    
-    if (hypotheses.length === 0) {
-      critique = "No hypotheses have been formulated yet. This is a fundamental gap in the scientific process.";
-      suggestions = ["Develop clear, testable hypotheses based on the problem statement", "Ensure hypotheses are specific and measurable"];
-      potentialFlaws = ["Missing foundational hypotheses"];
-      confidenceRating = 0.1;
-    } else {
-      const avgEvidence = hypotheses.reduce((sum, h) => sum + h.evidenceScore, 0) / hypotheses.length;
-      
-      switch (reviewerType) {
-        case 'skeptical':
-          critique = `${hypotheses.length} hypotheses presented with average evidence score of ${avgEvidence.toFixed(2)}. As a skeptical reviewer, I question whether these hypotheses are truly independent and whether confirmation bias may be affecting the evidence evaluation.`;
-          suggestions = ["Test competing alternative hypotheses", "Seek disconfirming evidence", "Consider null hypotheses"];
-          potentialFlaws = ["Possible confirmation bias", "Hypotheses may not be mutually exclusive", "Insufficient falsifiability testing"];
-          confidenceRating = Math.max(0.2, avgEvidence - 0.3);
-          break;
-        case 'supportive':
-          critique = `The ${hypotheses.length} hypotheses show promise with evidence scores averaging ${avgEvidence.toFixed(2)}. The research direction appears sound and methodologically appropriate.`;
-          suggestions = ["Expand sample size to strengthen findings", "Consider additional variables", "Explore practical applications"];
-          potentialFlaws = avgEvidence < 0.5 ? ["Evidence base could be stronger"] : [];
-          confidenceRating = Math.min(0.9, avgEvidence + 0.2);
-          break;
-        case 'methodological':
-          critique = `Methodological assessment of ${hypotheses.length} hypotheses reveals ${avgEvidence < 0.5 ? 'concerning' : 'adequate'} evidence foundation. Focus should be on experimental design rigor.`;
-          suggestions = ["Ensure proper control groups", "Validate measurement instruments", "Consider confounding variables"];
-          potentialFlaws = ["Need clearer operational definitions", "Potential measurement validity issues"];
-          confidenceRating = avgEvidence;
-          break;
-        case 'statistical':
-          critique = `Statistical review: ${hypotheses.length} hypotheses with mean evidence score ${avgEvidence.toFixed(3)}. ${avgEvidence > 0.7 ? 'Strong' : avgEvidence > 0.4 ? 'Moderate' : 'Weak'} statistical foundation.`;
-          suggestions = ["Calculate effect sizes", "Perform power analysis", "Apply appropriate statistical tests"];
-          potentialFlaws = avgEvidence < 0.6 ? ["Insufficient statistical power", "Risk of Type II error"] : [];
-          confidenceRating = avgEvidence;
-          break;
-      }
-    }
-    
-    return { critique, suggestions, potentialFlaws, confidenceRating };
-  }
-  
-  private reviewMethodology(reviewerType: string) {
-    const experiments = this.state.experiments;
-    let critique = "";
-    let suggestions: string[] = [];
-    let potentialFlaws: string[] = [];
-    let confidenceRating = 0.5;
-    
-    if (experiments.length === 0) {
-      critique = "No experimental methodology has been designed. This is a critical gap for empirical validation.";
-      suggestions = ["Design controlled experiments", "Establish clear protocols", "Define measurement procedures"];
-      potentialFlaws = ["Missing experimental framework"];
-      confidenceRating = 0.2;
-    } else {
-      switch (reviewerType) {
-        case 'skeptical':
-          critique = `${experiments.length} experimental designs provided. I'm concerned about potential methodological biases and whether controls are adequate.`;
-          suggestions = ["Implement double-blind procedures", "Add negative controls", "Consider alternative explanations"];
-          potentialFlaws = ["Possible experimenter bias", "Inadequate controls", "Selection bias risk"];
-          confidenceRating = 0.4;
-          break;
-        case 'methodological':
-          critique = `Methodological review of ${experiments.length} experimental designs. Focus on internal and external validity is essential.`;
-          suggestions = ["Validate instruments", "Ensure reproducibility", "Document protocols thoroughly"];
-          potentialFlaws = ["Protocol standardization needed", "Replication concerns"];
-          confidenceRating = 0.6;
-          break;
-        default:
-          critique = `${experiments.length} experimental approaches documented. Methodology appears reasonable for the research question.`;
-          suggestions = ["Scale up successful pilots", "Consider cross-validation"];
-          potentialFlaws = [];
-          confidenceRating = 0.7;
-      }
-    }
-    
-    return { critique, suggestions, potentialFlaws, confidenceRating };
-  }
-  
-  private reviewData(reviewerType: string) {
-    const dataPoints = this.state.data;
-    let critique = "";
-    let suggestions: string[] = [];
-    let potentialFlaws: string[] = [];
-    let confidenceRating = 0.5;
-    
-    if (dataPoints.length === 0) {
-      critique = "No data has been collected yet. Empirical evidence is essential for hypothesis validation.";
-      suggestions = ["Begin systematic data collection", "Ensure data quality controls"];
-      potentialFlaws = ["Missing empirical evidence"];
-      confidenceRating = 0.1;
-    } else {
-      switch (reviewerType) {
-        case 'statistical':
-          critique = `Statistical assessment: ${dataPoints.length} data points collected. ${dataPoints.length < 30 ? 'Sample size may be insufficient for robust analysis.' : 'Sample size appears adequate.'}`;
-          suggestions = dataPoints.length < 30 ? ["Increase sample size", "Consider effect size calculations"] : ["Perform comprehensive statistical analysis", "Check for outliers"];
-          potentialFlaws = dataPoints.length < 30 ? ["Underpowered analysis", "Low statistical reliability"] : [];
-          confidenceRating = Math.min(0.8, dataPoints.length / 50);
-          break;
-        case 'skeptical':
-          critique = `${dataPoints.length} data points presented. I question the data collection methodology and potential sources of bias.`;
-          suggestions = ["Validate data sources", "Check for sampling bias", "Implement quality controls"];
-          potentialFlaws = ["Data quality concerns", "Possible selection bias", "Measurement error risk"];
-          confidenceRating = Math.max(0.2, Math.min(0.6, dataPoints.length / 40));
-          break;
-        default:
-          critique = `Data collection shows ${dataPoints.length} observations. This provides a foundation for analysis.`;
-          suggestions = ["Proceed with statistical analysis", "Consider additional data sources"];
-          potentialFlaws = [];
-          confidenceRating = Math.min(0.8, dataPoints.length / 30);
-      }
-    }
-    
-    return { critique, suggestions, potentialFlaws, confidenceRating };
-  }
-  
-  private reviewConclusions(reviewerType: string) {
-    const conclusions = this.state.conclusions;
-    let critique = "";
-    let suggestions: string[] = [];
-    let potentialFlaws: string[] = [];
-    let confidenceRating = 0.5;
-    
-    if (conclusions.length === 0) {
-      critique = "No conclusions have been drawn yet. The research process appears incomplete.";
-      suggestions = ["Analyze collected data", "Draw evidence-based conclusions"];
-      potentialFlaws = ["Incomplete research process"];
-      confidenceRating = 0.2;
-    } else {
-      const hasData = this.state.data.length > 0;
-      const hasAnalysis = !!this.state.analysis;
-      
-      switch (reviewerType) {
-        case 'skeptical':
-          critique = `${conclusions.length} conclusions presented. I'm concerned about whether the conclusions are fully supported by the evidence.`;
-          suggestions = ["Provide stronger evidence links", "Address alternative explanations", "Acknowledge limitations"];
-          potentialFlaws = hasData ? [] : ["Conclusions without data"], hasAnalysis ? [] : ["Missing analytical foundation"];
-          confidenceRating = (hasData && hasAnalysis) ? 0.6 : 0.3;
-          break;
-        default:
-          critique = `${conclusions.length} conclusions drawn from the research. ${hasData && hasAnalysis ? 'Conclusions appear well-supported.' : 'Evidence base needs strengthening.'}`;
-          suggestions = ["Consider broader implications", "Suggest future research directions"];
-          potentialFlaws = hasData ? [] : ["Need stronger data foundation"];
-          confidenceRating = (hasData && hasAnalysis) ? 0.8 : 0.5;
-      }
-    }
-    
-    return { critique, suggestions, potentialFlaws, confidenceRating };
-  }
-  
-  private reviewOverall(reviewerType: string) {
-    const progress = this.calculateResearchProgress();
-    let critique = "";
-    let suggestions: string[] = [];
-    let potentialFlaws: string[] = [];
-    let confidenceRating = progress / 100;
+
+  private getReviewGuidanceByType(reviewerType: string, focusArea: string): string {
+    let guidance = `### 🔬 ${reviewerType.charAt(0).toUpperCase() + reviewerType.slice(1)} Review Approach\n`;
     
     switch (reviewerType) {
       case 'skeptical':
-        critique = `Overall research progress: ${progress}%. As a skeptical reviewer, I see significant concerns about the research validity and potential biases throughout the process.`;
-        suggestions = ["Strengthen methodological rigor", "Seek independent validation", "Address potential confounds"];
-        potentialFlaws = ["Overall methodological concerns", "Potential systematic biases", "Need external validation"];
-        confidenceRating = Math.max(0.2, confidenceRating - 0.3);
+        guidance += `As a skeptical reviewer, focus on:\n`;
+        guidance += `• **Challenge assumptions** - Question underlying premises\n`;
+        guidance += `• **Seek disconfirming evidence** - What contradicts the findings?\n`;
+        guidance += `• **Identify biases** - Look for confirmation bias, selection bias\n`;
+        guidance += `• **Test alternative explanations** - What else could explain the results?\n`;
+        guidance += `• **Question methodology** - Are controls adequate? Are variables properly isolated?\n`;
         break;
       case 'supportive':
-        critique = `Research shows ${progress}% completion with promising preliminary findings. The approach is sound and results encouraging.`;
-        suggestions = ["Continue current methodology", "Expand scope if results permit", "Prepare for publication"];
-        potentialFlaws = progress < 80 ? ["Research still in progress"] : [];
-        confidenceRating = Math.min(0.9, confidenceRating + 0.2);
+        guidance += `As a supportive reviewer, focus on:\n`;
+        guidance += `• **Highlight strengths** - What is well-done and innovative?\n`;
+        guidance += `• **Constructive suggestions** - How can good work be made even better?\n`;
+        guidance += `• **Encourage development** - What promising directions should be pursued?\n`;
+        guidance += `• **Practical applications** - How can findings be applied or extended?\n`;
+        guidance += `• **Build on positives** - How to amplify successful elements?\n`;
         break;
       case 'methodological':
-        critique = `Methodological assessment shows ${progress}% research completion. Focus on maintaining rigorous standards throughout.`;
-        suggestions = ["Ensure protocol compliance", "Document all procedures", "Validate instruments"];
-        potentialFlaws = ["Need stronger methodological documentation"];
-        confidenceRating = confidenceRating;
+        guidance += `As a methodological expert, focus on:\n`;
+        guidance += `• **Experimental design** - Are procedures scientifically sound?\n`;
+        guidance += `• **Control groups** - Are appropriate controls in place?\n`;
+        guidance += `• **Variable isolation** - Are confounding factors addressed?\n`;
+        guidance += `• **Reproducibility** - Can others replicate this work?\n`;
+        guidance += `• **Validity** - Internal and external validity considerations\n`;
         break;
       case 'statistical':
-        critique = `Statistical review: ${progress}% complete. ${this.state.hypotheses.length > 0 ? 'Hypothesis structure adequate.' : 'Need formal hypotheses.'} ${this.state.data.length > 20 ? 'Sufficient data for analysis.' : 'More data needed.'}`;
-        suggestions = ["Perform comprehensive statistical tests", "Calculate confidence intervals", "Report effect sizes"];
-        potentialFlaws = this.state.data.length < 20 ? ["Insufficient sample size"] : [];
-        confidenceRating = confidenceRating;
+        guidance += `As a statistical reviewer, focus on:\n`;
+        guidance += `• **Sample size** - Is it adequate for reliable conclusions?\n`;
+        guidance += `• **Statistical tests** - Are appropriate tests being used?\n`;
+        guidance += `• **Effect sizes** - Not just significance, but practical importance\n`;
+        guidance += `• **Data quality** - Outliers, missing data, measurement error\n`;
+        guidance += `• **Confidence intervals** - What is the precision of estimates?\n`;
         break;
     }
     
-    return { critique, suggestions, potentialFlaws, confidenceRating };
+    return guidance + `\n`;
   }
-  
-  private calculateResearchProgress(): number {
-    let progress = 0;
-    if (this.state.problemStatement) progress += 15;
-    if (this.state.literature.length > 0) progress += 15;
-    if (this.state.hypotheses.length > 0) progress += 20;
-    if (this.state.experiments.length > 0) progress += 15;
-    if (this.state.data.length > 0) progress += 15;
-    if (this.state.analysis) progress += 10;
-    if (this.state.conclusions.length > 0) progress += 10;
-    return progress;
-  }
-  
-  private formatPeerReviewSummary(feedback: PeerReviewFeedback, focusArea: string, reviewerType: string): string {
-    const confidenceEmoji = feedback.confidenceRating > 0.7 ? "🟢" : feedback.confidenceRating > 0.4 ? "🟡" : "🔴";
-    const confidenceLevel = feedback.confidenceRating > 0.7 ? "High" : feedback.confidenceRating > 0.4 ? "Moderate" : "Low";
+
+  private getFocusAreaGuidance(focusArea: string): string {
+    let guidance = `### 🎯 Focus Area: ${focusArea.charAt(0).toUpperCase() + focusArea.slice(1)}\n`;
     
-    let summary = `## 🔍 Peer Review: ${feedback.perspective}\n`;
-    summary += `**Focus Area:** ${focusArea.charAt(0).toUpperCase() + focusArea.slice(1)}\n`;
-    summary += `**Confidence Level:** ${confidenceEmoji} ${confidenceLevel} (${(feedback.confidenceRating * 100).toFixed(0)}%)\n\n`;
-    
-    summary += `### 📝 Critique\n${feedback.critique}\n\n`;
-    
-    if (feedback.suggestions.length > 0) {
-      summary += `### 💡 Suggestions for Improvement\n`;
-      feedback.suggestions.forEach(suggestion => {
-        summary += `• ${suggestion}\n`;
-      });
-      summary += '\n';
+    switch (focusArea) {
+      case 'hypotheses':
+        guidance += `Pay special attention to:\n`;
+        guidance += `• **Testability** - Are hypotheses clearly testable?\n`;
+        guidance += `• **Specificity** - Are predictions specific and measurable?\n`;
+        guidance += `• **Independence** - Are hypotheses truly independent?\n`;
+        guidance += `• **Falsifiability** - Can hypotheses be proven wrong?\n`;
+        guidance += `• **Evidence basis** - Are hypotheses grounded in literature?\n`;
+        break;
+      case 'methodology':
+        guidance += `Pay special attention to:\n`;
+        guidance += `• **Experimental controls** - Adequate control conditions?\n`;
+        guidance += `• **Procedure clarity** - Could others follow the methods?\n`;
+        guidance += `• **Bias prevention** - Steps to minimize systematic errors?\n`;
+        guidance += `• **Ethical considerations** - Research ethics compliance?\n`;
+        guidance += `• **Feasibility** - Are methods practically implementable?\n`;
+        break;
+      case 'data':
+        guidance += `Pay special attention to:\n`;
+        guidance += `• **Data quality** - Completeness, accuracy, reliability\n`;
+        guidance += `• **Collection methods** - Appropriate data gathering?\n`;
+        guidance += `• **Sample representation** - Does sample represent population?\n`;
+        guidance += `• **Missing data** - How are gaps handled?\n`;
+        guidance += `• **Measurement validity** - Do measures capture intended constructs?\n`;
+        break;
+      case 'conclusions':
+        guidance += `Pay special attention to:\n`;
+        guidance += `• **Evidence support** - Are conclusions warranted by data?\n`;
+        guidance += `• **Overgeneralization** - Claims beyond what data supports?\n`;
+        guidance += `• **Alternative explanations** - Other ways to interpret results?\n`;
+        guidance += `• **Limitations** - Are study limitations acknowledged?\n`;
+        guidance += `• **Implications** - Are broader implications appropriate?\n`;
+        break;
+      default:
+        guidance += `Pay special attention to:\n`;
+        guidance += `• **Overall coherence** - Does everything fit together?\n`;
+        guidance += `• **Scientific rigor** - Are standards of good science met?\n`;
+        guidance += `• **Novelty and significance** - Does this advance knowledge?\n`;
+        guidance += `• **Clarity** - Is the work clearly communicated?\n`;
+        guidance += `• **Future directions** - What should be done next?\n`;
     }
     
-    if (feedback.potentialFlaws.length > 0) {
-      summary += `### ⚠️ Potential Issues Identified\n`;
-      feedback.potentialFlaws.forEach(flaw => {
-        summary += `• ${flaw}\n`;
-      });
-      summary += '\n';
-    }
-    
-    summary += `### 📊 Research Progress Overview\n`;
-    summary += `• Problem Statement: ${this.state.problemStatement ? '✅' : '❌'}\n`;
-    summary += `• Literature Review: ${this.state.literature.length} sources\n`;
-    summary += `• Hypotheses: ${this.state.hypotheses.length} formulated\n`;
-    summary += `• Experiments: ${this.state.experiments.length} designed\n`;
-    summary += `• Data Points: ${this.state.data.length} collected\n`;
-    summary += `• Analysis: ${this.state.analysis ? '✅' : '❌'}\n`;
-    summary += `• Conclusions: ${this.state.conclusions.length} drawn\n`;
-    
-    return summary;
+    return guidance;
   }
+  
 
   public get_state(): { content: Array<{ type: "text"; text: string }> } {
     return this.safeExecute(() => {
@@ -1408,13 +1250,13 @@ export function createCognatusServer({ config }: { config: z.infer<typeof config
   );
 
   server.tool(
-    "peer_review_simulation",
-    "Validate findings from multiple perspectives with expert peer review",
+    "peer_review_guidance",
+    "Provides guidance for conducting peer review - agent performs the actual review using specified style and focus",
     { 
       focusArea: z.enum(["hypotheses", "methodology", "data", "conclusions", "overall"]).optional().describe("Specific research area to focus the review on"),
-      reviewerType: z.enum(["skeptical", "supportive", "methodological", "statistical"]).optional().describe("Type of reviewer perspective to simulate")
+      reviewerType: z.enum(["skeptical", "supportive", "methodological", "statistical"]).optional().describe("Type of reviewer approach style to adopt")
     },
-    async (input: PeerReviewInput) => engine.peer_review_simulation(input)
+    async (input: PeerReviewInput) => engine.peer_review_guidance(input)
   );
 
   server.tool(

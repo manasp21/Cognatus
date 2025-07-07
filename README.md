@@ -25,7 +25,7 @@ An MCP server implementation that provides a sequential thinking process for sci
 - `experiment_design` - Design systematic tests
 - `literature_search` - Generate optimized search queries and provide guidance for academic literature search. **Requires agent to use external web search tools** - no fake papers generated
 - `data_analysis` - Advanced statistical analysis including descriptive statistics, inferential statistics, correlation analysis, regression analysis, and hypothesis testing
-- `peer_review_simulation` - Multi-perspective peer review with 4 reviewer types (skeptical, supportive, methodological, statistical) and 5 focus areas (hypotheses, methodology, data, conclusions, overall)
+- `peer_review_guidance` - Provides guidance for conducting peer review with 4 reviewer styles (skeptical, supportive, methodological, statistical) and 5 focus areas (hypotheses, methodology, data, conclusions, overall) - **agent conducts the actual review**
 
 ## Installation
 
